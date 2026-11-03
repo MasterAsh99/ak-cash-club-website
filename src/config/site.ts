@@ -14,7 +14,7 @@ export const site = {
   tagline: 'A private poker home game',
   city: 'London, Ontario',
   description:
-    'AK Cash Club is a private No-Limit Texas Hold’em cash game in London, Ontario. Low-to-medium stakes, a Manhattan-style table and KEM cards, free food and non-alcoholic drinks (BYOB). Seats by Instagram DM.',
+    'AK Cash Club is a private No-Limit Texas Hold’em cash game in London, Ontario: low-to-medium stakes, a Manhattan-style table, KEM cards, and complimentary food and non-alcoholic drinks. Seats are reserved by Instagram DM.',
 
   /** Instagram handle WITHOUT the "@". Used for every Instagram link and button. */
   instagramHandle: 'akcashclub',
@@ -57,9 +57,9 @@ export const gameDetails = [
   { label: 'Stakes', value: 'Low to medium' },
   { label: 'Location', value: 'London, Ontario', note: 'Address shared privately with confirmed players' },
   { label: 'Schedule', value: 'Announced on Instagram' },
-  { label: 'Table', value: 'Manhattan-style, blue felt', note: 'From Straight Poker Supplies' },
+  { label: 'Table', value: 'Manhattan-style, in blue felt', note: 'From Straight Poker Supplies' },
   { label: 'Cards', value: 'KEM, poker size' },
-  { label: 'Food', value: 'Free, along with non-alcoholic drinks' },
-  { label: 'Alcohol', value: 'Not served. BYOB only.' },
-  { label: 'Seating', value: 'Request a seat by Instagram DM' },
+  { label: 'Hospitality', value: 'Complimentary food and non-alcoholic drinks' },
+  { label: 'Alcohol', value: 'Not served by the hosts', note: 'You’re welcome to bring your own (BYOB)' },
+  { label: 'Seating', value: 'Reserved personally by Instagram DM' },
 ] as const;
