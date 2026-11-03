@@ -80,7 +80,7 @@ analytics, for example), you'll need to allow that domain in the CSP.
 │   └── robots.txt
 ├── assets/brand/            Full-resolution logo sources (kept in the repo, not deployed)
 ├── src/
-│   ├── config/site.ts       ← Club name, Instagram handle, nav, game details
+│   ├── config/site.ts       ← Club name, Instagram handle, nav, game details, equipment links
 │   ├── styles/global.css    ← Brand colours, fonts, buttons, animations
 │   ├── layouts/
 │   │   └── BaseLayout.astro <head>, SEO tags, scroll-reveal script
@@ -89,7 +89,8 @@ analytics, for example), you'll need to allow that domain in the CSP.
 │   │   ├── Hero.astro         Cinematic opening section
 │   │   ├── About.astro        The club
 │   │   ├── Game.astro         The game + "Game information" panel
-│   │   ├── Hospitality.astro  Complimentary food & drinks
+│   │   ├── Equipment.astro    Table + cards (links to Straight Poker Supplies)
+│   │   ├── Hospitality.astro  Free food, non-alcoholic drinks, alcohol policy (BYOB)
 │   │   ├── Promotions.astro   High hands & jackpots
 │   │   ├── Contact.astro      Instagram DM call-to-action
 │   │   ├── Footer.astro
@@ -108,6 +109,8 @@ analytics, for example), you'll need to allow that domain in the CSP.
 - **Text and details:** most settings, including the Instagram handle (`@akcashclub`), are in `src/config/site.ts`. The section copy is in each
   component under `src/components/`, written as plain HTML.
 - **Game information panel:** edit the `gameDetails` list in `src/config/site.ts`.
+- **Equipment links** (Straight Poker Supplies, the Manhattan table, KEM cards): edit `links` in
+  `src/config/site.ts`.
 - **Reordering or removing sections:** edit `src/pages/index.astro`, and update `nav` in
   `src/config/site.ts` to match.
 - **Colours and fonts:** edit the `@theme` block at the top of `src/styles/global.css`.

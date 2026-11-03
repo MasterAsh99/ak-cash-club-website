@@ -14,7 +14,7 @@ export const site = {
   tagline: 'A private poker home game',
   city: 'London, Ontario',
   description:
-    'AK Cash Club is a private poker home game in London, Ontario — low-to-medium-stakes No-Limit Texas Hold’em cash games with complimentary food and drinks. Seats by Instagram DM.',
+    'AK Cash Club is a private No-Limit Texas Hold’em cash game in London, Ontario. Low-to-medium stakes, a Manhattan-style table and KEM cards, free food and non-alcoholic drinks (BYOB). Seats by Instagram DM.',
 
   /** Instagram handle WITHOUT the "@". Used for every Instagram link and button. */
   instagramHandle: 'akcashclub',
@@ -24,10 +24,24 @@ export const instagramUrl = `https://www.instagram.com/${site.instagramHandle}/`
 /** Opens a DM thread on mobile (Instagram app) and the inbox on desktop. */
 export const instagramDmUrl = `https://ig.me/m/${site.instagramHandle}`;
 
+/**
+ * Outside links used in the Equipment section.
+ * Swap these if you'd rather point to a different product page.
+ */
+export const links = {
+  /** Straight Poker Supplies home page */
+  straightPoker: 'https://www.straightpokersupplies.com/',
+  /** Manhattan series tables at Straight Poker Supplies */
+  manhattanTable: 'https://www.straightpokersupplies.com/poker-tables/manhattan-series-poker-table.html',
+  /** KEM Arrow poker-size (regular index) cards at Straight Poker Supplies */
+  kemCards: 'https://www.straightpokersupplies.com/kem-playing-cards-arrow-poker-wide-regular-red-blue.html',
+} as const;
+
 export const nav = [
   { label: 'The Club', href: '#about' },
   { label: 'The Game', href: '#game' },
-  { label: 'Hospitality', href: '#hospitality' },
+  { label: 'Equipment', href: '#equipment' },
+  { label: 'Food & Drinks', href: '#hospitality' },
   { label: 'Promotions', href: '#promotions' },
   { label: 'Join', href: '#contact' },
 ] as const;
@@ -43,5 +57,9 @@ export const gameDetails = [
   { label: 'Stakes', value: 'Low to medium' },
   { label: 'Location', value: 'London, Ontario', note: 'Address shared privately with confirmed players' },
   { label: 'Schedule', value: 'Announced on Instagram' },
+  { label: 'Table', value: 'Manhattan-style, blue felt', note: 'From Straight Poker Supplies' },
+  { label: 'Cards', value: 'KEM, poker size' },
+  { label: 'Food', value: 'Free, along with non-alcoholic drinks' },
+  { label: 'Alcohol', value: 'Not served. BYOB only.' },
   { label: 'Seating', value: 'Request a seat by Instagram DM' },
 ] as const;

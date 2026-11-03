@@ -3,9 +3,9 @@ import InstagramIcon from './InstagramIcon.astro';
 import { instagramDmUrl, instagramUrl, site } from '../config/site';
 
 const steps = [
-  { title: 'Follow', body: `Follow @${site.instagramHandle} for game nights and promotions.` },
-  { title: 'Message', body: 'Send a DM to request a seat or ask anything about the game.' },
-  { title: 'Confirm', body: 'Once you’re confirmed, the details and location are shared with you privately.' },
+  { title: 'Follow', body: `Follow @${site.instagramHandle}. Game dates and promotions are posted there.` },
+  { title: 'Message', body: 'Send us a DM saying you’d like a seat. Ask anything about the stakes or the game.' },
+  { title: 'Get the address', body: 'Once your seat is confirmed, we send you the address privately.' },
 ];
 ---
 
@@ -16,13 +16,13 @@ const steps = [
   </div>
 
   <div class="mx-auto max-w-4xl px-5 text-center sm:px-8">
-    <p class="eyebrow" data-reveal>By invitation &amp; request</p>
+    <p class="eyebrow" data-reveal>Join</p>
     <h2 id="contact-title" class="mt-5 text-[clamp(2.6rem,9vw,5rem)] leading-[1]" data-reveal style="--reveal-delay:100ms">
-      Your seat is a <span class="text-metal italic">message</span> away.
+      How to get a <span class="text-metal italic">seat</span>.
     </h2>
     <p class="mx-auto mt-7 max-w-lg text-base leading-relaxed text-silver-300 sm:text-lg" data-reveal style="--reveal-delay:200ms">
-      All seating is arranged through Instagram direct message. Reach out, introduce yourself, and
-      we’ll take it from there.
+      Every seat is arranged through Instagram direct message. There’s no sign-up form and no
+      payment on this site.
     </p>
 
     <div class="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center" data-reveal style="--reveal-delay:300ms">
