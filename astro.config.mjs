@@ -4,8 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
-  // Update this to the production domain once it is connected in Cloudflare Pages.
-  site: 'https://ak-cash-club-website.pages.dev',
+  // Live address on Cloudflare Workers. Update this if you add a custom domain.
+  site: 'https://ak-cash-club-website.aaronkara99.workers.dev',
   output: 'static',
   build: {
     // Inline small stylesheets to avoid an extra request on first load.
