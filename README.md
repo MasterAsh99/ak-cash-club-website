@@ -11,7 +11,6 @@ informational, and all contact goes through Instagram DM.
 
 ## Before launch: checklist
 
-- [ ] **Logo.** Add the official logo (see [Swapping in the official logo](#swapping-in-the-official-logo)).
 - [ ] **Domain.** Update `site` in `astro.config.mjs` to the production URL so canonical and share links are correct.
 - [ ] **Copy review.** Read through each section and adjust the wording to the club's voice.
 
@@ -75,9 +74,11 @@ analytics, for example), you'll need to allow that domain in the CSP.
 ```
 ├── public/                  Static files served as-is
 │   ├── _headers             Cloudflare Pages security + cache headers
-│   ├── favicon.svg
-│   ├── og-image.png         Preview image used when the link is shared
+│   ├── brand/               Emblem in web sizes (96/192/320/640 px, WebP)
+│   ├── favicon.ico, favicon-32.png, apple-touch-icon.png
+│   ├── og-image.jpg         Preview image used when the link is shared (1200×630)
 │   └── robots.txt
+├── assets/brand/            Full-resolution logo sources (kept in the repo, not deployed)
 ├── src/
 │   ├── config/site.ts       ← Club name, Instagram handle, nav, game details
 │   ├── styles/global.css    ← Brand colours, fonts, buttons, animations
@@ -92,7 +93,7 @@ analytics, for example), you'll need to allow that domain in the CSP.
 │   │   ├── Promotions.astro   High hands & jackpots
 │   │   ├── Contact.astro      Instagram DM call-to-action
 │   │   ├── Footer.astro
-│   │   ├── Logo.astro         Brand mark (swap for official logo)
+│   │   ├── Logo.astro         Emblem (header, hero, footer, 404)
 │   │   ├── SectionHeading.astro
 │   │   └── InstagramIcon.astro
 │   └── pages/
@@ -117,13 +118,21 @@ analytics, for example), you'll need to allow that domain in the CSP.
   `style="--reveal-delay:120ms"` to stagger them. All motion is turned off for visitors who
   enable "reduce motion" on their device.
 
-### Swapping in the official logo
+### Updating the logo
 
-1. Export the logo as **SVG** (best) or a **PNG at 2× size** with a transparent background.
-2. Save it as `public/logo.svg` (or `public/logo.png`).
-3. In `src/components/Logo.astro`, replace the monogram markup with
-   `<img src="/logo.svg" alt="AK Cash Club" width="40" height="40" />`, sizing it as needed.
-4. You can also replace `public/favicon.svg` and `public/og-image.png` (1200×630).
+The official emblem's full-resolution source is `assets/brand/emblem-original.png`, and
+`assets/brand/emblem-circle-master.png` is the same emblem cropped to a circle with a transparent
+background. The site uses smaller copies made from the circular master:
+
+| File                                   | Used for                            |
+| -------------------------------------- | ----------------------------------- |
+| `public/brand/emblem-{96,192,320,640}.webp` | Header, hero, footer, 404 page |
+| `public/favicon.ico`, `favicon-32.png`  | Browser tab icon                    |
+| `public/apple-touch-icon.png`           | iPhone home-screen icon             |
+| `public/og-image.jpg`                   | Link preview on social and messaging apps |
+
+If the logo ever changes, replace those files with new versions at the same sizes. For best
+results, keep the emblem as a circle with a transparent background.
 
 ---
 

@@ -1,36 +1,58 @@
 ---
 /**
- * Brand mark.
+ * Brand mark: the official AK Cash Club emblem.
  *
- * This is a typographic stand-in for the official AK Cash Club logo.
- * To use the real logo: export it as SVG (preferred) or a 2x PNG with a
- * transparent background, save it to /public/logo.svg, and replace the
- * monogram markup below with:
- *   <img src="/logo.svg" alt="AK Cash Club" width="40" height="40" />
+ * Image files live in /public/brand/ (emblem-96/192/320/640.webp).
+ * The full-resolution source is kept in /assets/brand/ (not deployed).
+ * To update the logo, regenerate those sizes from the new source:
+ * a circular crop with a transparent background, saved as WebP.
  */
 import { site } from '../config/site';
 
 interface Props {
+  /** sm = header/footer (40px), lg = hero (176px mobile, 256px desktop) */
   size?: 'sm' | 'lg';
   showWordmark?: boolean;
   class?: string;
+  /** Load eagerly with high priority (use for the hero, which is above the fold). */
+  priority?: boolean;
 }
 
-const { size = 'sm', showWordmark = true, class: className = '' } = Astro.props;
-const ring = size === 'lg' ? 'size-28 text-5xl' : 'size-10 text-lg';
+const { size = 'sm', showWordmark = true, class: className = '', priority = false } = Astro.props;
+
+const variants = {
+  sm: {
+    src: '/brand/emblem-96.webp',
+    srcset: '/brand/emblem-96.webp 96w, /brand/emblem-192.webp 192w',
+    sizes: '40px',
+    px: 40,
+    cls: 'size-10',
+  },
+  lg: {
+    src: '/brand/emblem-320.webp',
+    srcset: '/brand/emblem-192.webp 192w, /brand/emblem-320.webp 320w, /brand/emblem-640.webp 640w',
+    sizes: '(min-width: 640px) 256px, 176px',
+    px: 256,
+    cls: 'size-44 sm:size-64',
+  },
+} as const;
+
+const v = variants[size];
 ---
 
 <span class:list={['inline-flex items-center gap-3', className]}>
-  <span
-    class:list={[
-      'relative grid shrink-0 place-items-center rounded-full border border-silver-200/40 font-serif font-semibold tracking-tight',
-      ring,
-    ]}
-    aria-hidden="true"
-  >
-    <span class="absolute inset-[3px] rounded-full border border-silver-200/15"></span>
-    <span class="text-metal leading-none">{site.shortName}</span>
-  </span>
+  <img
+    src={v.src}
+    srcset={v.srcset}
+    sizes={v.sizes}
+    width={v.px}
+    height={v.px}
+    alt={showWordmark ? '' : site.name}
+    class:list={['shrink-0 rounded-full', v.cls]}
+    loading={priority ? 'eager' : 'lazy'}
+    fetchpriority={priority ? 'high' : 'auto'}
+    decoding="async"
+  />
   {
     showWordmark && (
       <span class="font-serif text-lg leading-none tracking-[0.2em] text-silver-100 uppercase">
@@ -38,5 +60,4 @@ const ring = size === 'lg' ? 'size-28 text-5xl' : 'size-10 text-lg';
       </span>
     )
   }
-  {!showWordmark && <span class="sr-only">{site.name}</span>}
 </span>

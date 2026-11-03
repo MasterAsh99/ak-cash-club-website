@@ -6,14 +6,14 @@ import { site, instagramDmUrl } from '../config/site';
 
 <section
   id="top"
-  class="relative isolate flex min-h-[100svh] items-center overflow-hidden pt-24 pb-20"
+  class="relative isolate flex min-h-[100svh] items-center overflow-hidden pt-20 pb-16 sm:pt-24 sm:pb-20"
   aria-labelledby="hero-title"
 >
   <!-- Lighting: a soft overhead pool of steel-blue light, like a lamp over the table -->
   <div class="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
     <div class="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_0%,#16243f_0%,#0a1120_38%,#05070c_75%)]"></div>
     <div
-      class="animate-drift absolute top-[-20%] left-1/2 h-[80vh] w-[120vw] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(closest-side,rgb(124_156_196/0.22),transparent)] blur-2xl"
+      class="animate-drift absolute top-[-20%] left-1/2 h-[80vh] w-[120vw] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(closest-side,rgb(58_110_210/0.22),transparent)] blur-2xl"
     ></div>
     <!-- Felt-table ellipse, drawn as faint concentric rails -->
     <div
@@ -28,17 +28,23 @@ import { site, instagramDmUrl } from '../config/site';
   </div>
 
   <div class="mx-auto w-full max-w-6xl px-5 text-center sm:px-8">
-    <div data-reveal>
-      <Logo size="lg" showWordmark={false} class="mx-auto" />
+    <div class="relative mx-auto w-fit" data-reveal>
+      <!-- Royal-blue halo behind the emblem -->
+      <div
+        class="absolute inset-[-18%] -z-10 rounded-full bg-[radial-gradient(closest-side,rgb(58_110_210/0.35),transparent)] blur-xl"
+        aria-hidden="true"
+      >
+      </div>
+      <Logo size="lg" showWordmark={false} priority class="drop-shadow-[0_30px_50px_rgb(0_0_0/0.7)]" />
     </div>
 
-    <p class="eyebrow mt-10" data-reveal style="--reveal-delay:120ms">
+    <p class="eyebrow mt-6 sm:mt-8" data-reveal style="--reveal-delay:120ms">
       Private poker · {site.city}
     </p>
 
     <h1
       id="hero-title"
-      class="mx-auto mt-6 max-w-4xl text-[clamp(3rem,13vw,7.5rem)] leading-[0.92] font-medium"
+      class="mx-auto mt-4 max-w-4xl text-[clamp(3rem,13vw,7rem)] sm:mt-6 leading-[0.92] font-medium"
       data-reveal
       style="--reveal-delay:220ms"
     >
@@ -46,7 +52,7 @@ import { site, instagramDmUrl } from '../config/site';
     </h1>
 
     <p
-      class="mx-auto mt-8 max-w-xl text-base leading-relaxed text-silver-300 sm:text-lg"
+      class="mx-auto mt-5 max-w-xl text-base sm:mt-8 leading-relaxed text-silver-300 sm:text-lg"
       data-reveal
       style="--reveal-delay:340ms"
     >
@@ -55,7 +61,7 @@ import { site, instagramDmUrl } from '../config/site';
     </p>
 
     <div
-      class="mt-11 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center"
+      class="mt-8 flex flex-col sm:mt-11 items-stretch justify-center gap-3 sm:flex-row sm:items-center"
       data-reveal
       style="--reveal-delay:460ms"
     >
@@ -69,7 +75,7 @@ import { site, instagramDmUrl } from '../config/site';
 
   <a
     href="#about"
-    class="absolute bottom-8 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-3 text-[0.65rem] tracking-[0.3em] text-silver-400 uppercase sm:flex"
+    class="absolute bottom-8 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-3 text-[0.65rem] tracking-[0.3em] text-silver-400 uppercase [@media(min-width:640px)_and_(min-height:980px)]:flex"
     aria-label="Scroll to about the club"
   >
     <span aria-hidden="true">Scroll</span>
