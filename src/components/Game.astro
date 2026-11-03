@@ -1,0 +1,56 @@
+---
+import SectionHeading from './SectionHeading.astro';
+import { gameDetails } from '../config/site';
+---
+
+<section id="game" class="relative overflow-hidden py-24 sm:py-32" aria-labelledby="game-title">
+  <div
+    class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_50%_at_85%_30%,rgb(44_79_143/0.2),transparent)]"
+    aria-hidden="true"
+  >
+  </div>
+
+  <div class="mx-auto max-w-6xl px-5 sm:px-8">
+    <SectionHeading eyebrow="The Game" title="No-Limit Texas Hold’em." id="game-title" />
+
+    <div class="mt-14 grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
+      <div class="space-y-5 text-base leading-relaxed text-silver-300 sm:text-lg" data-reveal>
+        <p>
+          The game is No-Limit Hold’em, played as a cash game at low-to-medium stakes: approachable
+          for newer players, with enough depth to keep experienced players interested.
+        </p>
+        <p>
+          Cash game means you can join and leave as it suits your night. There’s no tournament clock
+          to keep up with, just a steady, well-run game.
+        </p>
+        <p class="text-silver-400">
+          Current stakes, dates and seat availability are shared on Instagram and by direct
+          message.
+        </p>
+      </div>
+
+      <!-- Game information panel -->
+      <div class="panel overflow-hidden" data-reveal style="--reveal-delay:120ms" aria-labelledby="game-info-title">
+        <div class="flex items-center justify-between border-b border-silver-100/10 px-6 py-5 sm:px-8">
+          <h3 id="game-info-title" class="font-sans text-xs font-medium tracking-[0.28em] text-silver-200 uppercase">
+            Game information
+          </h3>
+          <span class="font-serif text-lg text-steel-400" aria-hidden="true">♠ ♦</span>
+        </div>
+        <dl class="divide-y divide-silver-100/10">
+          {
+            gameDetails.map((d) => (
+              <div class="grid grid-cols-[7.5rem_1fr] gap-4 px-6 py-4 sm:grid-cols-[9rem_1fr] sm:px-8">
+                <dt class="pt-0.5 text-xs tracking-[0.18em] text-silver-400 uppercase">{d.label}</dt>
+                <dd class="text-silver-50">
+                  {d.value}
+                  {'note' in d && d.note && <span class="mt-1 block text-sm text-silver-400">{d.note}</span>}
+                </dd>
+              </div>
+            ))
+          }
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>

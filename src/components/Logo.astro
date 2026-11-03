@@ -1,0 +1,63 @@
+---
+/**
+ * Brand mark: the official AK Cash Club emblem.
+ *
+ * Image files live in /public/brand/ (emblem-96/192/320/640.webp).
+ * The full-resolution source is kept in /assets/brand/ (not deployed).
+ * To update the logo, regenerate those sizes from the new source:
+ * a circular crop with a transparent background, saved as WebP.
+ */
+import { site } from '../config/site';
+
+interface Props {
+  /** sm = header/footer (40px), lg = hero (176px mobile, 256px desktop) */
+  size?: 'sm' | 'lg';
+  showWordmark?: boolean;
+  class?: string;
+  /** Load eagerly with high priority (use for the hero, which is above the fold). */
+  priority?: boolean;
+}
+
+const { size = 'sm', showWordmark = true, class: className = '', priority = false } = Astro.props;
+
+const variants = {
+  sm: {
+    src: '/brand/emblem-96.webp',
+    srcset: '/brand/emblem-96.webp 96w, /brand/emblem-192.webp 192w',
+    sizes: '40px',
+    px: 40,
+    cls: 'size-10',
+  },
+  lg: {
+    src: '/brand/emblem-320.webp',
+    srcset: '/brand/emblem-192.webp 192w, /brand/emblem-320.webp 320w, /brand/emblem-640.webp 640w',
+    sizes: '(min-width: 640px) 256px, 176px',
+    px: 256,
+    cls: 'size-44 sm:size-64',
+  },
+} as const;
+
+const v = variants[size];
+---
+
+<span class:list={['inline-flex items-center gap-3', className]}>
+  <img
+    src={v.src}
+    srcset={v.srcset}
+    sizes={v.sizes}
+    width={v.px}
+    height={v.px}
+    alt={showWordmark ? '' : site.name}
+    class:list={['shrink-0 rounded-full', v.cls]}
+    loading={priority ? 'eager' : 'lazy'}
+    fetchpriority={priority ? 'high' : 'auto'}
+    decoding="async"
+  />
+  {
+    showWordmark && (
+      <span class="font-serif text-lg leading-none tracking-[0.2em] text-silver-100 uppercase">
+        {site.name}
+      </span>
+    )
+  }
+</span>

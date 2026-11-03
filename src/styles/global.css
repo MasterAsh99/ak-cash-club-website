@@ -1,0 +1,181 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/cormorant-garamond';
+@import '@fontsource-variable/inter';
+
+/* ---------------------------------------------------------------
+   Brand tokens
+   Midnight navy · black · steel blue · metallic silver
+   Use these as Tailwind utilities, e.g. bg-midnight-900, text-silver-200
+---------------------------------------------------------------- */
+@theme {
+  --font-serif: 'Cormorant Garamond Variable', 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-ink: #05070c;
+
+  --color-midnight-950: #070b14;
+  --color-midnight-900: #0a1120;
+  --color-midnight-800: #0f1a30;
+  --color-midnight-700: #16243f;
+  --color-midnight-600: #1f3254;
+
+  /* Steel blue, tuned toward the royal-blue glow in the emblem */
+  --color-steel-600: #2c4f8f;
+  --color-steel-500: #4a72b8;
+  --color-steel-400: #7096d4;
+  --color-steel-300: #a3bde6;
+
+  --color-silver-50: #f4f6f9;
+  --color-silver-100: #e6eaf0;
+  --color-silver-200: #ccd3dd;
+  --color-silver-300: #aeb8c6;
+  --color-silver-400: #8d98a9;
+  --color-silver-500: #6c7789;
+
+  --ease-luxe: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-sheen: sheen 9s var(--ease-luxe) infinite;
+  --animate-drift: drift 18s ease-in-out infinite alternate;
+
+  @keyframes sheen {
+    0%, 55% { background-position: 200% 50%; }
+    100% { background-position: -100% 50%; }
+  }
+  @keyframes drift {
+    from { transform: translate3d(-4%, -2%, 0) scale(1); }
+    to { transform: translate3d(4%, 3%, 0) scale(1.08); }
+  }
+}
+
+/* ---------------------------------------------------------------
+   Base
+---------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-ink font-sans text-silver-200 antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3 {
+    @apply font-serif font-medium tracking-tight text-silver-50;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    @apply bg-steel-500/40 text-silver-50;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-4 outline-steel-300;
+    border-radius: 2px;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Reusable pieces
+---------------------------------------------------------------- */
+@layer components {
+  /* Brushed-metal silver text */
+  .text-metal {
+    background-image: linear-gradient(
+      100deg,
+      #9a958c 0%,
+      #e9e6df 22%,
+      #ffffff 32%,
+      #b7b4ad 46%,
+      #f4f2ec 62%,
+      #9a958c 80%,
+      #d6d2c9 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Small uppercase label above section headings */
+  .eyebrow {
+    @apply font-sans text-[0.7rem] font-medium tracking-[0.32em] text-steel-300 uppercase;
+  }
+
+  /* Hairline divider with a silver glint in the middle */
+  .hairline {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgb(165 190 220 / 0.45), transparent);
+  }
+
+  /* Panel with soft edge light */
+  .panel {
+    @apply relative rounded-2xl border border-silver-100/10 bg-midnight-900/60;
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.05),
+      0 30px 60px -30px rgb(0 0 0 / 0.8);
+  }
+
+  .btn,
+  .btn-primary,
+  .btn-ghost {
+    @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-full px-7 text-sm font-medium tracking-wide transition duration-300;
+    transition-timing-function: var(--ease-luxe);
+  }
+  .btn-primary {
+    @apply text-midnight-950;
+    background-image: linear-gradient(180deg, #f4f6f9 0%, #ccd3dd 55%, #aeb8c6 100%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.8),
+      0 10px 30px -10px rgb(74 114 184 / 0.55);
+  }
+  .btn-primary:hover {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.9),
+      0 14px 40px -10px rgb(74 114 184 / 0.85);
+    transform: translateY(-1px);
+  }
+  .btn-ghost {
+    @apply border border-silver-200/25 text-silver-100 hover:border-steel-300/60 hover:bg-steel-500/10;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Scroll reveal (progressively enhanced — see BaseLayout script)
+---------------------------------------------------------------- */
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.9s var(--ease-luxe),
+    transform 0.9s var(--ease-luxe);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.js [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}

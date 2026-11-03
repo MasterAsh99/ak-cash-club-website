@@ -1,0 +1,39 @@
+---
+import SectionHeading from './SectionHeading.astro';
+---
+
+<section id="hospitality" class="relative py-24 sm:py-32" aria-labelledby="hospitality-title">
+  <div class="mx-auto max-w-6xl px-5 sm:px-8">
+    <div class="panel relative overflow-hidden px-6 py-16 sm:px-14 sm:py-20">
+      <!-- soft spotlight -->
+      <div
+        class="pointer-events-none absolute -top-1/2 left-1/2 h-[120%] w-[90%] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(closest-side,rgb(112_150_212/0.12),transparent)]"
+        aria-hidden="true"
+      >
+      </div>
+
+      <div class="relative grid gap-12 lg:grid-cols-2 lg:items-end">
+        <SectionHeading eyebrow="Hospitality" title="On the house." id="hospitality-title" />
+
+        <div class="space-y-5 text-base leading-relaxed text-silver-300 sm:text-lg" data-reveal>
+          <p>
+            Complimentary food and drinks are part of every game. Settle in, stay comfortable, and
+            keep your attention where it belongs: on the cards.
+          </p>
+          <p class="text-silver-400">Good hosting is the difference between a game and a night out.</p>
+        </div>
+      </div>
+
+      <ul class="relative mt-14 grid gap-px overflow-hidden rounded-xl border border-silver-100/10 bg-silver-100/10 sm:grid-cols-2">
+        <li class="bg-midnight-900 p-6 sm:p-8" data-reveal>
+          <p class="eyebrow">Complimentary</p>
+          <p class="mt-3 font-serif text-3xl text-silver-50">Food</p>
+        </li>
+        <li class="bg-midnight-900 p-6 sm:p-8" data-reveal style="--reveal-delay:110ms">
+          <p class="eyebrow">Complimentary</p>
+          <p class="mt-3 font-serif text-3xl text-silver-50">Drinks</p>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>

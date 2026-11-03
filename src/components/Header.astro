@@ -1,0 +1,123 @@
+---
+import Logo from './Logo.astro';
+import InstagramIcon from './InstagramIcon.astro';
+import { nav, instagramDmUrl } from '../config/site';
+---
+
+<header
+  id="site-header"
+  class="fixed inset-x-0 top-0 z-50 border-b border-transparent transition-colors duration-500 data-[scrolled]:border-silver-100/10 data-[scrolled]:bg-ink/80 data-[scrolled]:backdrop-blur-xl"
+>
+  <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:h-20 sm:px-8">
+    <a href="#top" class="rounded-full" aria-label="AK Cash Club — back to top">
+      <span class="sm:hidden"><Logo showWordmark={false} priority /></span>
+      <span class="hidden sm:block"><Logo priority /></span>
+    </a>
+
+    <nav aria-label="Primary" class="hidden lg:block">
+      <ul class="flex items-center gap-8 text-[0.8rem] tracking-[0.14em] text-silver-300 uppercase">
+        {
+          nav.map((item) => (
+            <li>
+              <a href={item.href} class="transition-colors duration-300 hover:text-silver-50">
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="flex items-center gap-2">
+      <a href={instagramDmUrl} target="_blank" rel="noopener" class="btn-ghost hidden min-h-10 px-5 sm:inline-flex">
+        <InstagramIcon />
+        Request a seat
+      </a>
+
+      <!-- Mobile menu -->
+      <button
+        id="menu-toggle"
+        type="button"
+        class="grid size-11 place-items-center rounded-full border border-silver-200/20 text-silver-100 lg:hidden"
+        aria-controls="mobile-menu"
+        aria-expanded="false"
+      >
+        <span class="sr-only">Open menu</span>
+        <span class="relative block h-3 w-5" aria-hidden="true">
+          <span class="menu-bar absolute top-0 left-0 h-px w-5 bg-current transition duration-300"></span>
+          <span class="menu-bar absolute bottom-0 left-0 h-px w-5 bg-current transition duration-300"></span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+</header>
+
+<!-- Kept outside <header>: its backdrop-filter would otherwise trap this fixed overlay. -->
+<div
+  id="mobile-menu"
+  class="pointer-events-none fixed inset-x-0 top-16 bottom-0 z-40 bg-ink/95 opacity-0 backdrop-blur-xl transition-opacity duration-500 data-[open]:pointer-events-auto data-[open]:opacity-100 sm:top-20 lg:hidden"
+  inert
+>
+  <nav aria-label="Mobile" class="flex h-full flex-col justify-between px-6 pt-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+    <ul class="space-y-1">
+      {
+        nav.map((item) => (
+          <li>
+            <a
+              href={item.href}
+              class="block border-b border-silver-100/10 py-5 font-serif text-3xl text-silver-50"
+              data-close-menu
+            >
+              {item.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+    <a href={instagramDmUrl} target="_blank" rel="noopener" class="btn-primary w-full" data-close-menu>
+      <InstagramIcon />
+      Request a seat on Instagram
+    </a>
+  </nav>
+</div>
+
+<style>
+  #menu-toggle[aria-expanded='true'] .menu-bar:first-child {
+    transform: translateY(5.5px) rotate(45deg);
+  }
+  #menu-toggle[aria-expanded='true'] .menu-bar:last-child {
+    transform: translateY(-5.5px) rotate(-45deg);
+  }
+</style>
+
+<script>
+  const header = document.getElementById('site-header')!;
+  const toggle = document.getElementById('menu-toggle')!;
+  const menu = document.getElementById('mobile-menu')!;
+  const label = toggle.querySelector('.sr-only')!;
+
+  // Solid header background once the page scrolls.
+  const onScroll = () => header.toggleAttribute('data-scrolled', window.scrollY > 24);
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  const setOpen = (open: boolean) => {
+    toggle.setAttribute('aria-expanded', String(open));
+    label.textContent = open ? 'Close menu' : 'Open menu';
+    menu.toggleAttribute('data-open', open);
+    menu.toggleAttribute('inert', !open);
+    header.toggleAttribute('data-scrolled', open || window.scrollY > 24);
+    document.body.style.overflow = open ? 'hidden' : '';
+  };
+
+  toggle.addEventListener('click', () => setOpen(toggle.getAttribute('aria-expanded') !== 'true'));
+  menu.querySelectorAll('[data-close-menu]').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+      setOpen(false);
+      toggle.focus();
+    }
+  });
+  window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => e.matches && setOpen(false));
+</script>

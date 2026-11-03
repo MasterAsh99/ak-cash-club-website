@@ -1,0 +1,17 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Logo from '../components/Logo.astro';
+import { site } from '../config/site';
+---
+
+<BaseLayout title={`Page not found · ${site.name}`}>
+  <main id="main" class="grid min-h-dvh place-items-center bg-[radial-gradient(80%_60%_at_50%_0%,#16243f,#05070c_70%)] px-6 text-center">
+    <div>
+      <Logo size="lg" showWordmark={false} class="mx-auto" />
+      <p class="eyebrow mt-10">404</p>
+      <h1 class="mt-4 text-5xl">This seat is empty.</h1>
+      <p class="mt-4 text-silver-300">The page you’re looking for isn’t here.</p>
+      <a href="/" class="btn-ghost mt-10">Back to the table</a>
+    </div>
+  </main>
+</BaseLayout>
