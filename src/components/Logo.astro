@@ -1,0 +1,42 @@
+---
+/**
+ * Brand mark.
+ *
+ * This is a typographic stand-in for the official AK Cash Club logo.
+ * To use the real logo: export it as SVG (preferred) or a 2x PNG with a
+ * transparent background, save it to /public/logo.svg, and replace the
+ * monogram markup below with:
+ *   <img src="/logo.svg" alt="AK Cash Club" width="40" height="40" />
+ */
+import { site } from '../config/site';
+
+interface Props {
+  size?: 'sm' | 'lg';
+  showWordmark?: boolean;
+  class?: string;
+}
+
+const { size = 'sm', showWordmark = true, class: className = '' } = Astro.props;
+const ring = size === 'lg' ? 'size-28 text-5xl' : 'size-10 text-lg';
+---
+
+<span class:list={['inline-flex items-center gap-3', className]}>
+  <span
+    class:list={[
+      'relative grid shrink-0 place-items-center rounded-full border border-silver-200/40 font-serif font-semibold tracking-tight',
+      ring,
+    ]}
+    aria-hidden="true"
+  >
+    <span class="absolute inset-[3px] rounded-full border border-silver-200/15"></span>
+    <span class="text-metal leading-none">{site.shortName}</span>
+  </span>
+  {
+    showWordmark && (
+      <span class="font-serif text-lg leading-none tracking-[0.2em] text-silver-100 uppercase">
+        {site.name}
+      </span>
+    )
+  }
+  {!showWordmark && <span class="sr-only">{site.name}</span>}
+</span>
