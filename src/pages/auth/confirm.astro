@@ -1,0 +1,128 @@
+---
+/**
+ * Landing page for every emailed link (verify email, reset password, change
+ * email). Links carry a one-time token_hash. We deliberately do NOT use the
+ * token on page load: email security scanners pre-open links, which would
+ * burn the token. The token is only used when the person presses the button
+ * (or, for password resets, submits their new password).
+ */
+export const prerender = false;
+
+import type { EmailOtpType } from '@supabase/supabase-js';
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import AuthCard from '../../components/portal/AuthCard.astro';
+import Field from '../../components/portal/Field.astro';
+import Alert from '../../components/portal/Alert.astro';
+import NotConfigured from '../../components/portal/NotConfigured.astro';
+import { readForm } from '../../lib/access';
+import { friendlyAuthError } from '../../lib/errors';
+import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../../lib/ratelimit';
+import { PASSWORD_HELP, field, passwordProblem, rawField } from '../../lib/validation';
+
+const ALLOWED: EmailOtpType[] = ['signup', 'email', 'recovery', 'email_change'];
+
+const supabase = Astro.locals.supabase;
+const form = await readForm(Astro);
+
+const tokenHash = (form ? field(form, 'token_hash', 200) : Astro.url.searchParams.get('token_hash') ?? '').trim();
+const rawType = (form ? field(form, 'type', 20) : Astro.url.searchParams.get('type') ?? '') as EmailOtpType;
+const type = ALLOWED.includes(rawType) ? rawType : null;
+const tokenLooksValid = /^[A-Za-z0-9_-]{8,200}$/.test(tokenHash);
+
+let expired = !type || !tokenLooksValid;
+let formError = '';
+const errors: Record<string, string> = {};
+
+if (form && supabase && !expired && type) {
+  if (!(await allowAuthAttempt(Astro.request, 'verify'))) {
+    formError = RATE_LIMITED_MESSAGE;
+  } else if (type === 'recovery') {
+    const password = rawField(form, 'password');
+    const confirm = rawField(form, 'confirm');
+    const problem = passwordProblem(password);
+    if (problem) errors.password = problem;
+    else if (password !== confirm) errors.confirm = 'The passwords don’t match.';
+
+    if (!errors.password && !errors.confirm) {
+      const { error: verifyError } = await supabase.auth.verifyOtp({ type: 'recovery', token_hash: tokenHash });
+      if (verifyError) {
+        expired = true;
+      } else {
+        const { error: updateError } = await supabase.auth.updateUser({ password });
+        if (updateError) {
+          // The link is now used up; sign out and ask for a fresh one.
+          await supabase.auth.signOut({ scope: 'local' });
+          formError = `${friendlyAuthError(updateError)} Please request a new reset link.`;
+        } else {
+          // Sign out every other device that had this account open.
+          await supabase.auth.signOut({ scope: 'others' });
+          return Astro.redirect('/dashboard?notice=password-updated');
+        }
+      }
+    }
+  } else {
+    const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+    if (error) {
+      expired = true;
+    } else if (type === 'email_change') {
+      // With "secure email change", both the old and new address must confirm.
+      return Astro.redirect(data.session ? '/account?notice=email-changed' : '/account?notice=email-change-partial');
+    } else {
+      return Astro.redirect('/dashboard?notice=verified');
+    }
+  }
+}
+
+const copy = {
+  signup: { eyebrow: 'Verify your email', title: 'Confirm your account', button: 'Verify my email' },
+  email: { eyebrow: 'Verify your email', title: 'Confirm your account', button: 'Verify my email' },
+  email_change: { eyebrow: 'Email change', title: 'Confirm your new email', button: 'Confirm email change' },
+  recovery: { eyebrow: 'Password reset', title: 'Choose a new password', button: 'Save new password' },
+} as const;
+const c = copy[(type ?? 'signup') as keyof typeof copy];
+---
+
+<PortalLayout title={expired ? 'Link expired' : c.title} current="auth" width="narrow">
+  {!supabase ? (
+    <NotConfigured />
+  ) : expired ? (
+    <AuthCard eyebrow="Link expired" title="This link can’t be used">
+      <div class="space-y-5 leading-relaxed text-silver-300">
+        <p>
+          It may have expired, already been used, or been copied incompletely. For your security, each
+          link works once and only for a limited time.
+        </p>
+        <div class="flex flex-col gap-3 sm:flex-row">
+          {
+            type === 'recovery' ? (
+              <a href="/forgot-password" class="btn-primary flex-1">Request a new reset link</a>
+            ) : type === 'email_change' ? (
+              <a href="/account" class="btn-primary flex-1">Go to your account</a>
+            ) : (
+              <a href="/check-email?for=signup" class="btn-primary flex-1">Send a new verification link</a>
+            )
+          }
+          <a href="/login" class="btn-ghost flex-1">Log in</a>
+        </div>
+      </div>
+    </AuthCard>
+  ) : (
+    <AuthCard eyebrow={c.eyebrow} title={c.title}>
+      <form method="post" class="space-y-6" novalidate>
+        {formError && <Alert tone="error">{formError}</Alert>}
+        <input type="hidden" name="token_hash" value={tokenHash} />
+        <input type="hidden" name="type" value={type} />
+        {type === 'recovery' ? (
+          <>
+            <Field label="New password" name="password" type="password" autocomplete="new-password" required minlength={10} hint={PASSWORD_HELP} error={errors.password} />
+            <Field label="Confirm new password" name="confirm" type="password" autocomplete="new-password" required error={errors.confirm} />
+            <p class="text-sm text-silver-400">Saving will sign you out on any other devices.</p>
+          </>
+        ) : (
+          <p class="leading-relaxed text-silver-300">Press the button below to finish.</p>
+        )}
+        <button type="submit" class="btn-primary w-full">{c.button}</button>
+      </form>
+    </AuthCard>
+  )}
+</PortalLayout>

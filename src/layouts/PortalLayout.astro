@@ -1,0 +1,118 @@
+---
+/**
+ * Layout for the member area (dashboard, account, host). Same brand language
+ * as the public site, with a members' navigation bar.
+ */
+import BaseLayout from './BaseLayout.astro';
+import Logo from '../components/Logo.astro';
+import { site } from '../config/site';
+import type { Access } from '../lib/access';
+
+interface Props {
+  title: string;
+  access?: Access | null;
+  /** Highlights the current nav item. */
+  current?: 'dashboard' | 'account' | 'host' | 'auth';
+  width?: 'narrow' | 'wide';
+}
+
+const { title, access = null, current, width = 'wide' } = Astro.props;
+
+const links = access
+  ? [
+      { href: '/', label: 'Home', key: 'home' },
+      { href: '/#about', label: 'The Club', key: 'club' },
+      { href: '/#game', label: 'The Game', key: 'game' },
+      { href: '/dashboard', label: 'My Dashboard', key: 'dashboard' },
+      { href: '/account', label: 'Account', key: 'account' },
+      ...(access.isHost ? [{ href: '/host', label: 'Host Dashboard', key: 'host' }] : []),
+    ]
+  : [
+      { href: '/', label: 'Home', key: 'home' },
+      { href: '/#about', label: 'The Club', key: 'club' },
+      { href: '/#game', label: 'The Game', key: 'game' },
+    ];
+---
+
+<BaseLayout title={`${title} · ${site.name}`} noindex>
+  <a
+    href="#portal-main"
+    class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:rounded-full focus:bg-silver-100 focus:px-5 focus:py-3 focus:text-sm focus:text-midnight-950"
+  >
+    Skip to content
+  </a>
+
+  <div class="relative min-h-dvh bg-[radial-gradient(90%_50%_at_50%_0%,#12244a_0%,#0a1120_35%,#05070c_75%)]">
+    <header class="sticky top-0 z-40 border-b border-silver-100/10 bg-ink/80 backdrop-blur-xl">
+      <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
+        <a href="/" class="rounded-full" aria-label={`${site.name} home`}>
+          <span class="sm:hidden"><Logo showWordmark={false} priority /></span>
+          <span class="hidden sm:block"><Logo priority /></span>
+        </a>
+
+        {
+          access ? (
+            <div class="flex items-center gap-3">
+              <span class="hidden text-sm text-silver-300 md:inline">
+                Signed in as <span class="text-silver-50">{access.username}</span>
+              </span>
+              <form method="post" action="/logout">
+                <button type="submit" class="btn-ghost min-h-10 px-4 text-xs">
+                  Log out
+                </button>
+              </form>
+            </div>
+          ) : (
+            current !== 'auth' && (
+              <div class="flex items-center gap-2">
+                <a href="/login" class="btn-ghost min-h-10 px-4 text-xs">Log in</a>
+              </div>
+            )
+          )
+        }
+      </div>
+
+      <nav aria-label="Members" class="mx-auto max-w-6xl px-3 sm:px-6">
+        <ul class="flex gap-1 overflow-x-auto pb-2 text-[0.72rem] tracking-[0.14em] whitespace-nowrap uppercase [scrollbar-width:none]">
+          {
+            links.map((l) => (
+              <li>
+                <a
+                  href={l.href}
+                  aria-current={l.key === current ? 'page' : undefined}
+                  class:list={[
+                    'inline-flex min-h-10 items-center rounded-full px-3.5 transition-colors',
+                    l.key === current
+                      ? 'bg-steel-500/15 text-silver-50 ring-1 ring-steel-400/30'
+                      : 'text-silver-400 hover:text-silver-50',
+                  ]}
+                >
+                  {l.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+    </header>
+
+    <main
+      id="portal-main"
+      class:list={['mx-auto px-5 pt-10 pb-24 sm:px-8 sm:pt-14', width === 'narrow' ? 'max-w-lg' : 'max-w-6xl']}
+    >
+      <slot />
+    </main>
+
+    <script>
+      // Keep the current section visible in the scrollable members menu on phones.
+      document.querySelector('nav[aria-label="Members"] [aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    </script>
+
+    <footer class="border-t border-silver-100/10">
+      <div class="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-8 text-xs text-silver-500 sm:flex-row sm:justify-between sm:px-8">
+        <p>© {new Date().getFullYear()} {site.name}. Results are private to each member.</p>
+        <p><a class="hover:text-silver-300" href="/privacy">Privacy</a></p>
+      </div>
+    </footer>
+  </div>
+</BaseLayout>

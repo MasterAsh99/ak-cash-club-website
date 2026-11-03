@@ -25,12 +25,15 @@ const year = new Date().getFullYear();
 
     <div class="grid gap-6 text-xs leading-relaxed text-silver-500 sm:grid-cols-2">
       <p>
-        {site.name} is a private home game in {site.city}. This website is informational only: it
-        offers no online gambling and takes no payments. Players must be of legal age in Ontario.
+        {site.name} is a private home game in {site.city}. This website offers no online gambling and takes no
+        payments. Players must be of legal age in Ontario.
       </p>
       <p class="sm:text-right">
         Please play responsibly. Free, confidential support is available through{' '}
         <a href="https://www.connexontario.ca/" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-silver-300">ConnexOntario</a>.
+        <br />
+        <a href="/privacy" class="underline underline-offset-2 hover:text-silver-300">Privacy</a> ·
+        <a href="/signup" class="underline underline-offset-2 hover:text-silver-300">Member sign-up</a>
         <br />
         © {year} {site.name}
       </p>

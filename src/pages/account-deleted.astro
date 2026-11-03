@@ -1,0 +1,15 @@
+---
+export const prerender = false;
+import PortalLayout from '../layouts/PortalLayout.astro';
+import AuthCard from '../components/portal/AuthCard.astro';
+---
+
+<PortalLayout title="Account deleted" current="auth" width="narrow">
+  <AuthCard eyebrow="Account deleted" title="Your account has been deleted">
+    <p class="leading-relaxed text-silver-300">
+      Your login, email address, username and consent record have been removed. Thank you for playing
+      with AK Cash Club. You’re always welcome back.
+    </p>
+    <a href="/" class="btn-ghost mt-8 w-full">Return home</a>
+  </AuthCard>
+</PortalLayout>

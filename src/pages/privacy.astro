@@ -1,0 +1,105 @@
+---
+/**
+ * Privacy notice (pre-built page). Plain language, written to cover what the
+ * member area actually does. Review with a lawyer before launch (see
+ * docs/COMPLIANCE_CHECKLIST.md).
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Logo from '../components/Logo.astro';
+import { site, instagramUrl } from '../config/site';
+
+const updated = 'November 2026';
+---
+
+<BaseLayout title={`Privacy · ${site.name}`} description="How AK Cash Club handles member account information.">
+  <main id="main" class="min-h-dvh bg-[radial-gradient(90%_40%_at_50%_0%,#12244a_0%,#0a1120_35%,#05070c_75%)] px-5 py-16 sm:px-8">
+    <article class="mx-auto max-w-2xl">
+      <a href="/" class="inline-block rounded-full"><Logo /></a>
+      <p class="eyebrow mt-12">Privacy notice</p>
+      <h1 class="mt-4 text-4xl sm:text-5xl">Your information at AK Cash Club</h1>
+      <p class="mt-3 text-sm text-silver-400">Last updated {updated}</p>
+
+      <div class="prose-portal mt-10 space-y-8 leading-relaxed text-silver-300">
+        <section>
+          <h2>What we collect</h2>
+          <ul>
+            <li><strong>Account details:</strong> your email address, the username you choose, and a password. Passwords are stored only as a salted one-way hash by our authentication provider. Nobody, including the host, can see or recover your password.</li>
+            <li><strong>Your consent choice:</strong> whether performance tracking is on, and when you turned it on.</li>
+            <li><strong>Session results, only if you opt in:</strong> the date and stakes of sessions you played, your buy-ins, rebuys and top-ups, your cash-out and your net result.</li>
+            <li><strong>Security records:</strong> a permanent log of changes to results and consent (what changed, when, and by which account).</li>
+          </ul>
+          <p>We don’t collect payment information. This website takes no payments and offers no online gambling.</p>
+        </section>
+
+        <section>
+          <h2>Who can see it</h2>
+          <ul>
+            <li><strong>You</strong> can see your own account and, while tracking is on, your own results.</li>
+            <li><strong>The host</strong> can see usernames, tracking status and the results they record, and is the only person who can enter or correct results. The website doesn’t show your email address to the host. As the site’s operator, the host can technically see account email addresses in the database admin tools; they’re used only to send account emails.</li>
+            <li><strong>Other players</strong> can never see your results or account details. There are no leaderboards and nothing is published.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Service providers</h2>
+          <p>
+            Accounts and records are stored with Supabase (authentication and database). The website runs on
+            Cloudflare. Account emails are sent through our email provider. These providers may store data
+            outside Canada. We only use them to run the member area.
+          </p>
+        </section>
+
+        <section>
+          <h2>Your choices</h2>
+          <ul>
+            <li><strong>Tracking is optional</strong> and off by default. Results from before you opt in are never linked to you automatically.</li>
+            <li><strong>Turn tracking off</strong> at any time in your account: your results disappear from your dashboard immediately and no new results can be linked to you.</li>
+            <li><strong>Remove your history:</strong> you can detach all past results from your account. The amounts remain in the host’s table records, but without your name.</li>
+            <li><strong>Delete your account:</strong> this permanently removes your login, email, username and consent record. Results are kept only as anonymous amounts so the host’s table totals still reconcile.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Corrections and requests</h2>
+          <p>
+            If a result looks wrong, or you’d like a copy of your information or help deleting it, message us on
+            Instagram at <a class="link" href={instagramUrl} target="_blank" rel="noopener">@{site.instagramHandle}</a>.
+            We aim to respond within 30 days. Every correction to a result is recorded in the audit log with a reason.
+          </p>
+        </section>
+
+        <section>
+          <h2>Security</h2>
+          <p>
+            Logins use secure cookies, email verification and rate limiting. Each member can only access their own
+            data; this is enforced by the database itself, not just the website. The host account requires
+            two-factor authentication.
+          </p>
+        </section>
+      </div>
+
+      <a href="/" class="btn-ghost mt-12">Back to the home page</a>
+    </article>
+  </main>
+</BaseLayout>
+
+<style>
+  .prose-portal :global(h2) {
+    font-size: 1.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .prose-portal :global(ul) {
+    list-style: disc;
+    padding-left: 1.25rem;
+    display: grid;
+    gap: 0.6rem;
+  }
+  .prose-portal :global(p + p),
+  .prose-portal :global(ul + p) {
+    margin-top: 0.75rem;
+  }
+  .prose-portal :global(strong) {
+    color: var(--color-silver-100);
+    font-weight: 500;
+  }
+</style>

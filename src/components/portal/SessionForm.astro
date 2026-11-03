@@ -1,0 +1,302 @@
+---
+/**
+ * Host session editor. Works without JavaScript (blank rows are provided and
+ * ignored if left empty); with JavaScript, rows can be added and each row's
+ * net result updates live. The server always recalculates on "Review".
+ */
+import Alert from './Alert.astro';
+import { formatCents } from '../../lib/money';
+import type { SessionPageState, PlayerOption } from '../../lib/host-session-page';
+import type { RowValues, AdjValues } from '../../lib/session-form';
+
+interface Props {
+  state: SessionPageState;
+  players: PlayerOption[];
+  isEdit: boolean;
+}
+const { state, players, isEdit } = Astro.props;
+const { values, errors, preview, fingerprint, saveError } = state;
+
+const blankRow: RowValues = { id: '', player: '', guest: '', initial: '', addons: '', cashout: '' };
+const rows: RowValues[] = [...values.rows];
+while (rows.length < Math.max(values.rows.length + 2, 6)) rows.push(blankRow);
+const blankAdj: AdjValues = { id: '', amount: '', reason: '' };
+const adjustments: AdjValues[] = [...values.adjustments, blankAdj];
+
+const selectedIds = new Set(values.rows.map((r) => r.player));
+// Tracked players can be added; untracked players only appear if already in this session.
+const options = players.filter((p) => p.tracked || selectedIds.has(p.id));
+const untrackedCount = players.filter((p) => !p.tracked).length;
+
+const tone = (c: bigint) => (c > 0n ? 'gain' : c < 0n ? 'loss' : 'text-silver-100');
+const err = (k: string) => errors[k];
+const errorCount = Object.keys(errors).length;
+---
+
+<form method="post" class="space-y-5" novalidate data-session-form>
+  {errorCount > 0 && (
+    <Alert tone="error" title="Please fix the highlighted fields">
+      {errors.form ?? errors.rows ?? `${errorCount} field${errorCount === 1 ? ' needs' : 's need'} attention.`}
+    </Alert>
+  )}
+  {saveError && <Alert tone="error">{saveError}</Alert>}
+
+  <!-- Session details -->
+  <section class="panel p-5 sm:p-8" aria-labelledby="details-title">
+    <h2 id="details-title" class="text-2xl">Session details</h2>
+    <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <label class="label" for="played_on">Date</label>
+        <input class="input" type="date" id="played_on" name="played_on" required value={values.played_on} aria-invalid={err('played_on') ? 'true' : undefined} />
+        {err('played_on') && <p class="field-error">{err('played_on')}</p>}
+      </div>
+      <div>
+        <label class="label" for="game_type">Game</label>
+        <input class="input" id="game_type" name="game_type" maxlength="60" value={values.game_type} />
+      </div>
+      <div>
+        <label class="label" for="stakes">Stakes</label>
+        <input class="input" id="stakes" name="stakes" maxlength="40" required placeholder="$1/$2" value={values.stakes} aria-invalid={err('stakes') ? 'true' : undefined} />
+        {err('stakes') && <p class="field-error">{err('stakes')}</p>}
+      </div>
+      <div>
+        <label class="label" for="title">Title <span class="normal-case tracking-normal text-silver-500">(optional)</span></label>
+        <input class="input" id="title" name="title" maxlength="80" placeholder="Friday game" value={values.title} />
+      </div>
+      <div class="sm:col-span-2 lg:col-span-4">
+        <label class="label" for="host_notes">Private host notes <span class="normal-case tracking-normal text-silver-500">(optional · never shown to players)</span></label>
+        <textarea class="input min-h-20" id="host_notes" name="host_notes" maxlength="2000">{values.host_notes}</textarea>
+      </div>
+    </div>
+  </section>
+
+  <!-- Players -->
+  <section class="panel p-5 sm:p-8" aria-labelledby="players-title">
+    <div class="flex flex-wrap items-baseline justify-between gap-3">
+      <h2 id="players-title" class="text-2xl">Players</h2>
+      <p class="text-sm text-silver-400">Separate rebuys with “+”, e.g. <span class="text-silver-200">100 + 50</span>. Empty rows are ignored.</p>
+    </div>
+    {untrackedCount > 0 && (
+      <p class="mt-3 text-sm text-silver-400">
+        {untrackedCount} registered player{untrackedCount === 1 ? ' hasn’t' : 's haven’t'} turned on tracking, so they can’t be selected. Record them as a guest instead.
+      </p>
+    )}
+
+    <div class="mt-6 space-y-3" data-rows>
+      {rows.map((r, i) => (
+        <fieldset class="rounded-xl border border-silver-100/10 bg-ink/30 p-4" data-row>
+          <legend class="sr-only">Player row {i + 1}</legend>
+          <input type="hidden" name="row_id" value={r.id} />
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_0.8fr_1fr_0.8fr_0.7fr] lg:items-start">
+            <div>
+              <label class="label" for={`row_player_${i}`}>Player</label>
+              <select class="input" id={`row_player_${i}`} name="row_player" aria-invalid={err(`row_${i}_player`) ? 'true' : undefined}>
+                <option value="">—</option>
+                {options.map((p) => (
+                  <option value={p.id} selected={r.player === p.id}>{p.username}{p.tracked ? '' : ' (tracking off)'}</option>
+                ))}
+                <option value="guest" selected={r.player === 'guest'}>Guest (not tracked)</option>
+              </select>
+              {err(`row_${i}_player`) && <p class="field-error">{err(`row_${i}_player`)}</p>}
+            </div>
+            <div>
+              <label class="label" for={`row_guest_${i}`}>Guest label</label>
+              <input class="input" id={`row_guest_${i}`} name="row_guest" maxlength="40" placeholder="Only for guests" value={r.guest} aria-invalid={err(`row_${i}_guest`) ? 'true' : undefined} />
+              {err(`row_${i}_guest`) && <p class="field-error">{err(`row_${i}_guest`)}</p>}
+            </div>
+            <div>
+              <label class="label" for={`row_initial_${i}`}>Buy-in</label>
+              <input class="input tabular-nums" id={`row_initial_${i}`} name="row_initial" inputmode="decimal" placeholder="0.00" value={r.initial} data-initial aria-invalid={err(`row_${i}_initial`) ? 'true' : undefined} />
+              {err(`row_${i}_initial`) && <p class="field-error">{err(`row_${i}_initial`)}</p>}
+            </div>
+            <div>
+              <label class="label" for={`row_addons_${i}`}>Rebuys / top-ups</label>
+              <input class="input tabular-nums" id={`row_addons_${i}`} name="row_addons" inputmode="decimal" placeholder="100 + 50" value={r.addons} data-addons aria-invalid={err(`row_${i}_addons`) ? 'true' : undefined} />
+              {err(`row_${i}_addons`) && <p class="field-error">{err(`row_${i}_addons`)}</p>}
+            </div>
+            <div>
+              <label class="label" for={`row_cashout_${i}`}>Cash-out</label>
+              <input class="input tabular-nums" id={`row_cashout_${i}`} name="row_cashout" inputmode="decimal" placeholder="0.00" value={r.cashout} data-cashout aria-invalid={err(`row_${i}_cashout`) ? 'true' : undefined} />
+              {err(`row_${i}_cashout`) && <p class="field-error">{err(`row_${i}_cashout`)}</p>}
+            </div>
+            <div>
+              <p class="label">Net</p>
+              <p class="flex min-h-12 items-center font-serif text-2xl tabular-nums text-silver-300" data-net aria-live="polite">—</p>
+            </div>
+          </div>
+        </fieldset>
+      ))}
+    </div>
+    <button type="button" class="btn-ghost mt-4 hidden" data-add-row>+ Add another player</button>
+    <p class="mt-5 text-sm text-silver-300" data-live-totals aria-live="polite"></p>
+  </section>
+
+  <!-- Adjustments -->
+  <section class="panel p-5 sm:p-8" aria-labelledby="adj-title">
+    <h2 id="adj-title" class="text-2xl">Adjustments <span class="font-sans text-sm tracking-normal text-silver-400">(optional)</span></h2>
+    <p class="mt-3 max-w-3xl text-sm leading-relaxed text-silver-400">
+      Use these to document money that didn’t go back to players (enter a positive amount) or money added
+      from outside the table (enter a negative amount), so the session reconciles honestly. Results are
+      never forced to balance.
+    </p>
+    <div class="mt-5 space-y-3">
+      {adjustments.map((a, i) => (
+        <div class="grid gap-3 sm:grid-cols-[0.6fr_2fr]">
+          <input type="hidden" name="adj_id" value={a.id} />
+          <div>
+            <label class="label" for={`adj_amount_${i}`}>Amount</label>
+            <input class="input tabular-nums" id={`adj_amount_${i}`} name="adj_amount" inputmode="decimal" placeholder="-25.00" value={a.amount} aria-invalid={err(`adj_${i}_amount`) ? 'true' : undefined} />
+            {err(`adj_${i}_amount`) && <p class="field-error">{err(`adj_${i}_amount`)}</p>}
+          </div>
+          <div>
+            <label class="label" for={`adj_reason_${i}`}>Reason</label>
+            <input class="input" id={`adj_reason_${i}`} name="adj_reason" maxlength="200" placeholder="What the adjustment is for" value={a.reason} aria-invalid={err(`adj_${i}_reason`) ? 'true' : undefined} />
+            {err(`adj_${i}_reason`) && <p class="field-error">{err(`adj_${i}_reason`)}</p>}
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  {isEdit && (
+    <section class="panel p-5 sm:p-8">
+      <label class="label" for="reason">Reason for this change</label>
+      <input class="input" id="reason" name="reason" maxlength="200" required placeholder="e.g. Corrected Bob’s cash-out" value={values.reason} aria-invalid={err('reason') ? 'true' : undefined} />
+      {err('reason') ? <p class="field-error">{err('reason')}</p> : <p class="hint">Saved permanently in the audit log with the date, time and your account.</p>}
+    </section>
+  )}
+
+  <!-- Review -->
+  {preview && (
+    <section class="panel overflow-hidden ring-1 ring-steel-400/30" aria-labelledby="review-title" id="review">
+      <div class="px-5 pt-6 sm:px-8">
+        <p class="eyebrow">Review before saving</p>
+        <h2 id="review-title" class="mt-2 text-2xl">Calculated results</h2>
+      </div>
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full min-w-[32rem] text-left text-sm tabular-nums">
+          <thead>
+            <tr class="border-y border-silver-100/10 text-[0.68rem] tracking-[0.16em] text-silver-400 uppercase">
+              <th scope="col" class="px-5 py-3 font-medium sm:px-8">Player</th>
+              <th scope="col" class="px-3 py-3 text-right font-medium">Buy-ins</th>
+              <th scope="col" class="px-3 py-3 text-right font-medium">Cash-out</th>
+              <th scope="col" class="px-5 py-3 text-right font-medium sm:px-8">Net</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-silver-100/10">
+            {preview.rows.map((r) => (
+              <tr>
+                <th scope="row" class="px-5 py-3 font-normal text-silver-100 sm:px-8">
+                  {r.name}{!r.tracked && <span class="ml-2 text-xs text-silver-500">guest</span>}
+                </th>
+                <td class="px-3 py-3 text-right text-silver-300">{formatCents(r.buyIn)}{r.addOnCount > 0 && <span class="block text-xs text-silver-500">incl. {r.addOnCount} rebuy{r.addOnCount === 1 ? '' : 's'}</span>}</td>
+                <td class="px-3 py-3 text-right text-silver-300">{formatCents(r.cashOut)}</td>
+                <td class:list={['px-5 py-3 text-right font-medium sm:px-8', tone(r.net)]}>{formatCents(r.net, { signed: true })}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot class="border-t border-silver-100/15 text-silver-100">
+            <tr>
+              <th scope="row" class="px-5 py-3 text-left font-medium sm:px-8">Table total</th>
+              <td class="px-3 py-3 text-right">{formatCents(preview.totalBuyIn)}</td>
+              <td class="px-3 py-3 text-right">{formatCents(preview.totalCashOut)}</td>
+              <td class:list={['px-5 py-3 text-right font-medium sm:px-8', tone(preview.totalNet)]}>{formatCents(preview.totalNet, { signed: true })}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="grid gap-3 px-5 py-6 text-sm sm:grid-cols-3 sm:px-8">
+        <p>Adjustments: <span class="tabular-nums text-silver-50">{formatCents(preview.adjustmentsTotal, { signed: true })}</span></p>
+        <p class="sm:col-span-2">
+          {preview.unexplained === 0n ? (
+            <span class="text-silver-100">✓ Balanced: every dollar is accounted for.</span>
+          ) : (
+            <span class="loss">! Unexplained difference of {formatCents(preview.unexplained, { signed: true })}. Check the amounts, or document it as an adjustment. You can still save.</span>
+          )}
+        </p>
+      </div>
+      <input type="hidden" name="fingerprint" value={fingerprint} />
+    </section>
+  )}
+
+  <div class="sticky bottom-3 z-10 flex flex-col gap-3 rounded-2xl border border-silver-100/10 bg-ink/90 p-3 backdrop-blur sm:flex-row sm:justify-end">
+    <button type="submit" name="intent" value="review" class={preview ? 'btn-ghost' : 'btn-primary'}>
+      {preview ? 'Recalculate' : 'Review results'}
+    </button>
+    {preview && (
+      <button type="submit" name="intent" value="save" class="btn-primary">
+        {isEdit ? 'Confirm and save changes' : 'Confirm and save session'}
+      </button>
+    )}
+  </div>
+</form>
+
+<script>
+  // Live per-row net + table totals while typing (display only; the server recalculates).
+  const toCents = (raw: string): bigint | null => {
+    const m = /^\$?\s*((?:\d{1,3}(?:,\d{3})+)|\d+)(?:\.(\d{1,2}))?$/.exec(raw.trim());
+    if (!m) return null;
+    return BigInt(m[1]!.replaceAll(',', '')) * 100n + BigInt((m[2] ?? '').padEnd(2, '0') || '0');
+  };
+  const fmt = (c: bigint) => {
+    const neg = c < 0n;
+    const a = neg ? -c : c;
+    const s = `$${(a / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${(a % 100n).toString().padStart(2, '0')}`;
+    return neg ? `−${s}` : c > 0n ? `+${s}` : s;
+  };
+
+  for (const form of document.querySelectorAll<HTMLFormElement>('[data-session-form]')) {
+    const container = form.querySelector<HTMLElement>('[data-rows]')!;
+    const totals = form.querySelector<HTMLElement>('[data-live-totals]')!;
+    const addBtn = form.querySelector<HTMLButtonElement>('[data-add-row]')!;
+
+    const update = () => {
+      let buy = 0n, cash = 0n, count = 0;
+      for (const row of container.querySelectorAll<HTMLElement>('[data-row]')) {
+        const i = row.querySelector<HTMLInputElement>('[data-initial]')!.value;
+        const a = row.querySelector<HTMLInputElement>('[data-addons]')!.value;
+        const c = row.querySelector<HTMLInputElement>('[data-cashout]')!.value;
+        const out = row.querySelector<HTMLElement>('[data-net]')!;
+        const initial = i.trim() ? toCents(i) : null;
+        const cashout = c.trim() ? toCents(c) : null;
+        const parts = a.trim() ? a.split(/[+;\s]+/).filter(Boolean).map(toCents) : [];
+        if (initial === null || cashout === null || parts.some((p) => p === null)) {
+          out.textContent = '—';
+          out.style.color = '';
+          continue;
+        }
+        const totalBuy = initial + (parts as bigint[]).reduce((x, y) => x + y, 0n);
+        const net = cashout - totalBuy;
+        buy += totalBuy; cash += cashout; count++;
+        out.textContent = fmt(net);
+        out.style.color = net > 0n ? '#8fb0e6' : net < 0n ? '#e69aa5' : '';
+      }
+      totals.textContent = count
+        ? `${count} player${count === 1 ? '' : 's'} · buy-ins ${fmt(buy).replace('+', '')} · cash-outs ${fmt(cash).replace('+', '')} · table net ${fmt(cash - buy)}`
+        : '';
+    };
+
+    form.addEventListener('input', update);
+    update();
+
+    addBtn.classList.remove('hidden');
+    addBtn.addEventListener('click', () => {
+      const rows = container.querySelectorAll<HTMLElement>('[data-row]');
+      if (rows.length >= 40) return;
+      const clone = rows[rows.length - 1]!.cloneNode(true) as HTMLElement;
+      const n = rows.length;
+      for (const el of clone.querySelectorAll('input, select')) {
+        if (el instanceof HTMLSelectElement) el.selectedIndex = 0;
+        else if (el instanceof HTMLInputElement) el.value = '';
+        el.removeAttribute('aria-invalid');
+        if (el.id) el.id = el.id.replace(/_\d+$/, `_${n}`);
+      }
+      for (const l of clone.querySelectorAll('label')) l.htmlFor = l.htmlFor.replace(/_\d+$/, `_${n}`);
+      for (const e of clone.querySelectorAll('.field-error')) e.remove();
+      clone.querySelector('legend')!.textContent = `Player row ${n + 1}`;
+      container.appendChild(clone);
+      clone.querySelector('select')?.focus();
+      update();
+    });
+  }
+</script>

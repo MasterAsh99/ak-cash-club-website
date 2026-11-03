@@ -1,0 +1,102 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../layouts/PortalLayout.astro';
+import AuthCard from '../components/portal/AuthCard.astro';
+import Field from '../components/portal/Field.astro';
+import Alert from '../components/portal/Alert.astro';
+import NotConfigured from '../components/portal/NotConfigured.astro';
+import { readForm } from '../lib/access';
+import { siteUrl } from '../lib/env';
+import { friendlyAuthError } from '../lib/errors';
+import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../lib/ratelimit';
+import {
+  PASSWORD_HELP, USERNAME_HELP, field, isEmail, passwordProblem, rawField, usernameMessage, usernameProblem,
+} from '../lib/validation';
+
+if (Astro.locals.user) return Astro.redirect('/dashboard');
+const supabase = Astro.locals.supabase;
+
+const values = { email: '', username: '' };
+const errors: Record<string, string> = {};
+let formError = '';
+
+const form = await readForm(Astro);
+if (form && supabase) {
+  values.email = field(form, 'email', 254).toLowerCase();
+  values.username = field(form, 'username', 40);
+  const password = rawField(form, 'password');
+  const confirm = rawField(form, 'confirm');
+
+  if (!isEmail(values.email)) errors.email = 'Please enter a valid email address.';
+  const uProblem = usernameProblem(values.username);
+  if (uProblem) errors.username = usernameMessage(uProblem);
+  const pProblem = passwordProblem(password, { email: values.email, username: values.username });
+  if (pProblem) errors.password = pProblem;
+  else if (password !== confirm) errors.confirm = 'The passwords don’t match.';
+
+  if (Object.keys(errors).length === 0) {
+    if (!(await allowAuthAttempt(Astro.request, 'signup', values.email))) {
+      formError = RATE_LIMITED_MESSAGE;
+    } else {
+      const { data: status, error: checkError } = await supabase.rpc('check_username', { p_username: values.username });
+      if (checkError) {
+        formError = 'Something went wrong. Please try again.';
+      } else if (status !== 'ok') {
+        errors.username = usernameMessage(status === 'taken' ? 'taken' : status === 'reserved' ? 'reserved' : status === 'blocked' ? 'blocked' : 'invalid');
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email: values.email,
+          password,
+          options: {
+            data: { username: values.username },
+            emailRedirectTo: `${siteUrl(Astro.url)}/auth/confirm`,
+          },
+        });
+        if (error) {
+          const msg = friendlyAuthError(error);
+          if (/password/i.test(msg)) errors.password = msg;
+          else if (/username/i.test(msg)) errors.username = msg;
+          else formError = msg;
+        } else {
+          // Same response whether or not the email already had an account,
+          // so this page can't be used to discover who is a member.
+          return Astro.redirect('/check-email?for=signup');
+        }
+      }
+    }
+  }
+}
+---
+
+<PortalLayout title="Create your account" current="auth" width="narrow">
+  <AuthCard eyebrow="Members" title="Create your account">
+    {!supabase ? (
+      <NotConfigured />
+    ) : (
+      <form method="post" class="space-y-6" novalidate>
+        {formError && <Alert tone="error">{formError}</Alert>}
+        <Field label="Email" name="email" type="email" autocomplete="email" required value={values.email} error={errors.email} />
+        <Field
+          label="Username"
+          name="username"
+          autocomplete="username"
+          required
+          minlength={3}
+          maxlength={20}
+          value={values.username}
+          hint={`${USERNAME_HELP} This is the only name shown to the host.`}
+          error={errors.username}
+        />
+        <Field label="Password" name="password" type="password" autocomplete="new-password" required minlength={10} hint={PASSWORD_HELP} error={errors.password} />
+        <Field label="Confirm password" name="confirm" type="password" autocomplete="new-password" required error={errors.confirm} />
+        <p class="text-sm leading-relaxed text-silver-400">
+          We’ll email you a link to verify your address. Creating an account doesn’t share any results;
+          tracking is off until you choose to turn it on. See our <a class="link" href="/privacy">privacy notice</a>.
+        </p>
+        <button type="submit" class="btn-primary w-full">Create account</button>
+      </form>
+    )}
+    <p slot="after">Already a member? <a class="link" href="/login">Log in</a></p>
+  </AuthCard>
+</PortalLayout>

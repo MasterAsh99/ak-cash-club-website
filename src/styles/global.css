@@ -125,7 +125,8 @@
 
   .btn,
   .btn-primary,
-  .btn-ghost {
+  .btn-ghost,
+  .btn-danger {
     @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-full px-7 text-sm font-medium tracking-wide transition duration-300;
     transition-timing-function: var(--ease-luxe);
   }
@@ -144,6 +145,43 @@
   }
   .btn-ghost {
     @apply border border-silver-200/25 text-silver-100 hover:border-steel-300/60 hover:bg-steel-500/10;
+  }
+  .btn-danger {
+    @apply border border-[#d3707f]/50 text-[#f1c4cb] hover:bg-[#d3707f]/10;
+  }
+  .btn:disabled,
+  .btn-primary:disabled,
+  .btn-ghost:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  /* ---- Forms (member area) ---- */
+  .label {
+    @apply mb-2 block text-xs font-medium tracking-[0.16em] text-silver-300 uppercase;
+  }
+  .input {
+    @apply block min-h-12 w-full rounded-xl border border-silver-100/15 bg-ink/60 px-4 py-3 text-base text-silver-50 placeholder:text-silver-500 transition;
+    @apply focus:border-steel-300/70 focus:bg-ink focus:outline-none focus:ring-2 focus:ring-steel-400/30;
+  }
+  .input[aria-invalid='true'] {
+    @apply border-[#d3707f]/70;
+  }
+  .hint {
+    @apply mt-2 text-sm leading-relaxed text-silver-400;
+  }
+  .field-error {
+    @apply mt-2 text-sm text-[#f1a7b2];
+  }
+  .link {
+    @apply text-silver-50 underline decoration-silver-100/30 underline-offset-4 transition hover:decoration-silver-100;
+  }
+
+  /* Gains and losses: colour plus an explicit +/− sign, never colour alone. */
+  .gain {
+    color: #8fb0e6;
+  }
+  .loss {
+    color: #e69aa5;
   }
 }
 

@@ -1,0 +1,24 @@
+---
+interface Props {
+  tone?: 'info' | 'success' | 'error';
+  title?: string;
+}
+const { tone = 'info', title } = Astro.props;
+const styles = {
+  info: 'border-steel-400/30 bg-steel-600/10 text-silver-200',
+  success: 'border-[#5f8ad3]/40 bg-[#5f8ad3]/10 text-silver-100',
+  error: 'border-[#d3707f]/45 bg-[#d3707f]/10 text-[#f6d6db]',
+}[tone];
+const icon = { info: 'ⓘ', success: '✓', error: '!' }[tone];
+---
+
+<div
+  class:list={['flex gap-3 rounded-xl border px-4 py-3.5 text-sm leading-relaxed', styles]}
+  role={tone === 'error' ? 'alert' : 'status'}
+>
+  <span aria-hidden="true" class="mt-px font-semibold">{icon}</span>
+  <div>
+    {title && <p class="font-medium text-silver-50">{title}</p>}
+    <div><slot /></div>
+  </div>
+</div>

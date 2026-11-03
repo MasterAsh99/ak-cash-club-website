@@ -1,0 +1,75 @@
+# Supabase CLI configuration (used by `supabase start` for local development,
+# and as the written record of the auth settings the hosted project should use).
+#
+# The hosted project is configured in the Supabase dashboard; docs/SETUP.md
+# walks through each of these settings there. Keep the two in sync.
+
+project_id = "ak-cash-club"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]          # only `public` is exposed; `private` never is
+extra_search_path = ["public", "extensions"]
+max_rows = 500
+
+[db]
+port = 54322
+major_version = 17
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:4321"
+additional_redirect_urls = [
+  "http://127.0.0.1:4321/auth/confirm",
+  "https://ak-cash-club-website.aaronkara99.workers.dev/auth/confirm",
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 10
+
+[auth.rate_limit]
+email_sent = 30
+sign_in_sign_ups = 30
+token_verifications = 30
+token_refresh = 150
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true      # email must be verified before login
+double_confirm_changes = true    # email change confirmed from old AND new address
+secure_password_change = true
+max_frequency = "60s"
+otp_length = 6
+otp_expiry = 3600                # links valid for 1 hour
+
+[auth.email.template.confirmation]
+subject = "Verify your email · AK Cash Club"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your password · AK Cash Club"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your email change · AK Cash Club"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.mfa.phone]
+enroll_enabled = false
+verify_enabled = false
+
+[auth.external.apple]
+enabled = false
+[auth.external.google]
+enabled = false

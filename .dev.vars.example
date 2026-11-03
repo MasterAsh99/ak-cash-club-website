@@ -1,0 +1,15 @@
+# Local development settings for the Cloudflare Worker.
+# Copy to `.dev.vars` (git-ignored) and fill in. NEVER commit real values.
+#
+# Find both Supabase values in the Supabase dashboard:
+#   Project Settings -> API Keys   (use the *publishable* key, sb_publishable_...)
+#   Project Settings -> Data API   (Project URL)
+#
+# Do NOT put the Supabase secret / service_role key here or anywhere in this
+# project. The site never needs it.
+
+SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxxxxxx
+
+# Where links in emails point. In production this is set in wrangler.jsonc.
+PUBLIC_SITE_URL=http://127.0.0.1:4321

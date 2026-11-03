@@ -1,0 +1,21 @@
+---
+interface Props {
+  eyebrow: string;
+  title: string;
+}
+const { eyebrow, title } = Astro.props;
+---
+
+<div class="mx-auto w-full max-w-lg">
+  <div class="mb-8 text-center">
+    <p class="eyebrow">{eyebrow}</p>
+    <h1 class="mt-4 text-4xl leading-tight sm:text-5xl">{title}</h1>
+    <div class="hairline mx-auto mt-6 w-20"></div>
+  </div>
+  <div class="panel p-6 sm:p-9">
+    <slot />
+  </div>
+  <div class="mt-6 text-center text-sm text-silver-400">
+    <slot name="after" />
+  </div>
+</div>

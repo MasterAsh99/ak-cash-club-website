@@ -5,9 +5,15 @@ import { site } from '../config/site';
 interface Props {
   title?: string;
   description?: string;
+  /** Keep private/member pages out of search engines. */
+  noindex?: boolean;
 }
 
-const { title = `${site.name} · Private Poker · ${site.city}`, description = site.description } = Astro.props;
+const {
+  title = `${site.name} · Private Poker · ${site.city}`,
+  description = site.description,
+  noindex = false,
+} = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const ogImage = new URL('/og-image.jpg', Astro.site);
 ---
@@ -21,6 +27,7 @@ const ogImage = new URL('/og-image.jpg', Astro.site);
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     <meta name="theme-color" content="#05070c" />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
 
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
