@@ -14,8 +14,8 @@ import { nav, instagramDmUrl } from '../config/site';
       <span class="hidden sm:block"><Logo priority /></span>
     </a>
 
-    <nav aria-label="Primary" class="hidden lg:block">
-      <ul class="flex items-center gap-8 text-[0.8rem] tracking-[0.14em] text-silver-300 uppercase">
+    <nav aria-label="Primary" class="hidden xl:block">
+      <ul class="flex items-center gap-7 whitespace-nowrap text-[0.8rem] tracking-[0.14em] text-silver-300 uppercase">
         {
           nav.map((item) => (
             <li>
@@ -29,7 +29,7 @@ import { nav, instagramDmUrl } from '../config/site';
     </nav>
 
     <div class="flex items-center gap-2">
-      <a href={instagramDmUrl} target="_blank" rel="noopener" class="btn-ghost hidden min-h-10 px-5 sm:inline-flex">
+      <a href={instagramDmUrl} target="_blank" rel="noopener" class="btn-ghost hidden min-h-10 px-5 whitespace-nowrap sm:inline-flex">
         <InstagramIcon />
         Request a seat
       </a>
@@ -38,7 +38,7 @@ import { nav, instagramDmUrl } from '../config/site';
       <button
         id="menu-toggle"
         type="button"
-        class="grid size-11 place-items-center rounded-full border border-silver-200/20 text-silver-100 lg:hidden"
+        class="grid size-11 place-items-center rounded-full border border-silver-200/20 text-silver-100 xl:hidden"
         aria-controls="mobile-menu"
         aria-expanded="false"
       >
@@ -56,7 +56,7 @@ import { nav, instagramDmUrl } from '../config/site';
 <!-- Kept outside <header>: its backdrop-filter would otherwise trap this fixed overlay. -->
 <div
   id="mobile-menu"
-  class="pointer-events-none fixed inset-x-0 top-16 bottom-0 z-40 bg-ink/95 opacity-0 backdrop-blur-xl transition-opacity duration-500 data-[open]:pointer-events-auto data-[open]:opacity-100 sm:top-20 lg:hidden"
+  class="pointer-events-none fixed inset-x-0 top-16 bottom-0 z-40 bg-ink/95 opacity-0 backdrop-blur-xl transition-opacity duration-500 data-[open]:pointer-events-auto data-[open]:opacity-100 sm:top-20 xl:hidden"
   inert
 >
   <nav aria-label="Mobile" class="flex h-full flex-col justify-between px-6 pt-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
@@ -119,5 +119,5 @@ import { nav, instagramDmUrl } from '../config/site';
       toggle.focus();
     }
   });
-  window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => e.matches && setOpen(false));
+  window.matchMedia('(min-width: 1280px)').addEventListener('change', (e) => e.matches && setOpen(false));
 </script>

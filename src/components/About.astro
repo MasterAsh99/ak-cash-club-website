@@ -1,18 +1,18 @@
 ---
 import SectionHeading from './SectionHeading.astro';
 
-const pillars = [
+const points = [
   {
-    title: 'Private by design',
-    body: 'A home game, not a casino floor. Seats are arranged directly with the club, and the location is shared only with confirmed players.',
+    title: 'Seats by request',
+    body: 'You can’t just show up. Message us on Instagram, and once your seat is confirmed we’ll send you the address privately.',
   },
   {
-    title: 'A table worth sitting at',
-    body: 'A comfortable, focused game where regulars and newcomers alike are treated well and the action stays friendly.',
+    title: 'Proper equipment',
+    body: 'We play on a full-size Manhattan-style table from Straight Poker Supplies, with KEM plastic cards.',
   },
   {
-    title: 'Hosted properly',
-    body: 'Complimentary food and drinks through the night, so the only thing you need to bring is your game.',
+    title: 'Free food, no alcohol served',
+    body: 'Food and non-alcoholic drinks are on us. We don’t serve alcohol. If you want a drink, bring your own.',
   },
 ];
 ---
@@ -20,22 +20,23 @@ const pillars = [
 <section id="about" class="relative py-24 sm:py-32" aria-labelledby="about-title">
   <div class="mx-auto grid max-w-6xl gap-14 px-5 sm:px-8 lg:grid-cols-[1fr_1.1fr] lg:gap-20">
     <div>
-      <SectionHeading eyebrow="The Club" title="Welcome to the table." id="about-title" />
+      <SectionHeading eyebrow="The Club" title="A private home game." id="about-title" />
       <div class="mt-8 space-y-5 text-base leading-relaxed text-silver-300 sm:text-lg" data-reveal>
         <p>
-          AK Cash Club is a private poker home game in London, Ontario, built around one idea: the
-          best nights at the table come from good people and a game that’s run with care.
+          AK Cash Club is a poker game hosted at a private home in London, Ontario. It’s not a
+          casino or a public card room. Every player is confirmed ahead of time, and the address
+          is only given to people who have a seat.
         </p>
         <p>
-          It’s relaxed enough to enjoy and serious enough to respect. Whether you’re a regular or
-          looking for your first seat, you’ll be welcomed in.
+          We play No-Limit Texas Hold’em for cash at low-to-medium stakes. Regulars and newer
+          players sit at the same table.
         </p>
       </div>
     </div>
 
     <ul class="grid gap-4 self-end">
       {
-        pillars.map((p, i) => (
+        points.map((p, i) => (
           <li class="panel p-6 sm:p-8" data-reveal style={`--reveal-delay:${i * 110}ms`}>
             <div class="flex items-baseline gap-5">
               <span class="font-serif text-sm text-steel-400 tabular-nums" aria-hidden="true">

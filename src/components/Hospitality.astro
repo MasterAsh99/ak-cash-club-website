@@ -1,5 +1,11 @@
 ---
 import SectionHeading from './SectionHeading.astro';
+
+const tiles = [
+  { label: 'Food', value: 'Free' },
+  { label: 'Non-alcoholic drinks', value: 'Free' },
+  { label: 'Alcohol', value: 'BYOB only' },
+];
 ---
 
 <section id="hospitality" class="relative py-24 sm:py-32" aria-labelledby="hospitality-title">
@@ -13,27 +19,40 @@ import SectionHeading from './SectionHeading.astro';
       </div>
 
       <div class="relative grid gap-12 lg:grid-cols-2 lg:items-end">
-        <SectionHeading eyebrow="Hospitality" title="On the house." id="hospitality-title" />
+        <SectionHeading eyebrow="Food & Drinks" title="Food is on us." id="hospitality-title" />
 
-        <div class="space-y-5 text-base leading-relaxed text-silver-300 sm:text-lg" data-reveal>
-          <p>
-            Complimentary food and drinks are part of every game. Settle in, stay comfortable, and
-            keep your attention where it belongs: on the cards.
-          </p>
-          <p class="text-silver-400">Good hosting is the difference between a game and a night out.</p>
-        </div>
+        <p class="text-base leading-relaxed text-silver-300 sm:text-lg" data-reveal>
+          Food and non-alcoholic drinks are free for everyone at the table. You don’t have to bring
+          anything or pay for any of it.
+        </p>
       </div>
 
-      <ul class="relative mt-14 grid gap-px overflow-hidden rounded-xl border border-silver-100/10 bg-silver-100/10 sm:grid-cols-2">
-        <li class="bg-midnight-900 p-6 sm:p-8" data-reveal>
-          <p class="eyebrow">Complimentary</p>
-          <p class="mt-3 font-serif text-3xl text-silver-50">Food</p>
-        </li>
-        <li class="bg-midnight-900 p-6 sm:p-8" data-reveal style="--reveal-delay:110ms">
-          <p class="eyebrow">Complimentary</p>
-          <p class="mt-3 font-serif text-3xl text-silver-50">Drinks</p>
-        </li>
+      <ul class="relative mt-14 grid gap-px overflow-hidden rounded-xl border border-silver-100/10 bg-silver-100/10 sm:grid-cols-3">
+        {
+          tiles.map((t, i) => (
+            <li class="bg-midnight-900 p-6 sm:p-8" data-reveal style={`--reveal-delay:${i * 100}ms`}>
+              <p class="eyebrow">{t.label}</p>
+              <p class="mt-3 font-serif text-3xl text-silver-50">{t.value}</p>
+            </li>
+          ))
+        }
       </ul>
+
+      <!-- Alcohol policy -->
+      <div
+        class="relative mt-6 rounded-xl border border-steel-400/30 bg-steel-600/10 p-6 sm:p-8"
+        role="note"
+        aria-labelledby="alcohol-policy-title"
+        data-reveal
+      >
+        <h3 id="alcohol-policy-title" class="font-sans text-sm font-semibold tracking-[0.16em] text-silver-50 uppercase">
+          Alcohol policy
+        </h3>
+        <p class="mt-3 leading-relaxed text-silver-200">
+          The hosts will not serve alcohol under any circumstances. If you want to drink, it’s
+          BYOB: bring your own.
+        </p>
+      </div>
     </div>
   </div>
 </section>
