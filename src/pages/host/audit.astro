@@ -1,0 +1,112 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import HostNav from '../../components/portal/HostNav.astro';
+import Alert from '../../components/portal/Alert.astro';
+import { requireHost } from '../../lib/access';
+import { friendlyDbError } from '../../lib/errors';
+import { formatCents, toCents } from '../../lib/money';
+
+const access = await requireHost(Astro);
+if (access instanceof Response) return access;
+const supabase = Astro.locals.supabase!;
+
+const sessionParam = Astro.url.searchParams.get('session') ?? '';
+const sessionId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionParam) ? sessionParam : null;
+
+const [{ data, error }, { data: playerRows }] = await Promise.all([
+  supabase.rpc('host_get_audit', { p_session_id: sessionId, p_limit: 200 }),
+  supabase.rpc('host_list_players', { p_query: null, p_limit: 200 }),
+]);
+const names = new Map(((playerRows ?? []) as Array<{ player_id: string; username: string }>).map((p) => [p.player_id, p.username]));
+
+type Entry = {
+  id: number; occurred_at: string; actor_id: string | null; action: string; table_name: string; record_id: string | null;
+  session_id: string | null; reason: string | null; old_data: Record<string, unknown> | null; new_data: Record<string, unknown> | null;
+};
+const entries = (data ?? []) as Entry[];
+
+const TABLE_LABEL: Record<string, string> = {
+  game_sessions: 'Session', session_results: 'Result', session_adjustments: 'Adjustment', profiles: 'Consent',
+};
+const MONEY = new Set(['initial_buy_in_cents', 'cash_out_cents', 'amount_cents', 'net_cents', 'total_buy_in_cents']);
+const FIELD_LABEL: Record<string, string> = {
+  initial_buy_in_cents: 'buy-in', cash_out_cents: 'cash-out', amount_cents: 'amount', add_on_cents: 'rebuys',
+  player_id: 'player', guest_label: 'guest', played_on: 'date', stakes: 'stakes', title: 'title', game_type: 'game',
+  reason: 'reason', tracking_enabled: 'tracking', host_notes: 'notes',
+};
+const SKIP = new Set(['id', 'session_id', 'created_at', 'updated_at', 'created_by', 'net_cents', 'total_buy_in_cents', 'tracking_consented_at']);
+
+function show(key: string, v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—';
+  if (MONEY.has(key)) return formatCents(toCents(v));
+  if (key === 'add_on_cents' && Array.isArray(v)) return v.length ? v.map((c) => formatCents(toCents(c))).join(' + ') : 'none';
+  if (key === 'player_id') return names.get(String(v)) ?? 'removed account';
+  if (key === 'host_notes') return '(private note)';
+  if (typeof v === 'boolean') return v ? 'on' : 'off';
+  return String(v);
+}
+
+function describe(e: Entry): string[] {
+  const rowData = (e.new_data ?? e.old_data ?? {}) as Record<string, unknown>;
+  const subject = e.table_name === 'session_results'
+    ? rowData.player_id
+      ? (names.get(String(rowData.player_id)) ?? 'a removed account')
+      : String(rowData.guest_label ?? 'a guest')
+    : '';
+  if (e.action === 'update' && e.old_data && e.new_data) {
+    const changes: string[] = [];
+    for (const key of Object.keys(e.new_data)) {
+      if (SKIP.has(key)) continue;
+      const a = JSON.stringify(e.old_data[key]);
+      const b = JSON.stringify(e.new_data[key]);
+      const who = e.table_name === 'profiles' ? (names.get(String(e.record_id)) ?? 'a removed account') + ' ' : subject ? subject + ' ' : '';
+      if (a !== b) changes.push(`${who}${FIELD_LABEL[key] ?? key}: ${show(key, e.old_data[key])} → ${show(key, e.new_data[key])}`);
+    }
+    return changes.length ? changes : ['(no visible change)'];
+  }
+  const d = e.new_data ?? e.old_data ?? {};
+  if (e.table_name === 'session_results') {
+    return [`${subject}: buy-in ${show('initial_buy_in_cents', d.initial_buy_in_cents)}, rebuys ${show('add_on_cents', d.add_on_cents)}, cash-out ${show('cash_out_cents', d.cash_out_cents)}`];
+  }
+  if (e.table_name === 'session_adjustments') return [`${show('amount_cents', d.amount_cents)}: ${show('reason', d.reason)}`];
+  if (e.table_name === 'game_sessions') return [`${show('played_on', d.played_on)} · ${show('stakes', d.stakes)}${d.title ? ' · ' + d.title : ''}`];
+  return [];
+}
+
+const fmtTime = (iso: string) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
+---
+
+<PortalLayout title="Audit log" access={access} current="host">
+  <HostNav current="audit">
+    <h1 class="mt-3 text-4xl sm:text-5xl">Audit log</h1>
+    <p class="mt-2 max-w-xl text-sm text-silver-400">
+      Every change to financial records and tracking consent, newest first. Entries can’t be edited or deleted by anyone.
+      {sessionId && <> Showing one session. <a class="link" href="/host/audit">Show all</a></>}
+    </p>
+  </HostNav>
+
+  {error && <div class="mt-8"><Alert tone="error">{friendlyDbError(error)}</Alert></div>}
+
+  <ol class="mt-10 space-y-3">
+    {entries.map((e) => (
+      <li class="panel p-5 sm:p-6">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <p class="text-sm">
+            <span class="font-medium text-silver-50 capitalize">{e.action === 'insert' ? 'Added' : e.action === 'update' ? 'Changed' : 'Deleted'}</span>
+            <span class="text-silver-400"> · {TABLE_LABEL[e.table_name] ?? e.table_name}</span>
+            {e.session_id && <> · <a class="link text-xs" href={`/host/audit?session=${e.session_id}`}>session</a></>}
+          </p>
+          <p class="text-xs text-silver-500"><time datetime={e.occurred_at}>{fmtTime(e.occurred_at)}</time> · by {e.actor_id === access.userId ? 'AK (host)' : e.actor_id ? (names.get(e.actor_id) ?? 'a player') : 'system'}</p>
+        </div>
+        <ul class="mt-2 space-y-1 text-sm text-silver-300 tabular-nums">
+          {describe(e).map((line) => <li>{line}</li>)}
+        </ul>
+        {e.reason && <p class="mt-2 text-xs text-silver-400">Reason: <span class="text-silver-200">{e.reason}</span></p>}
+      </li>
+    ))}
+    {entries.length === 0 && !error && <li class="panel p-10 text-center text-silver-400">No changes recorded yet.</li>}
+  </ol>
+</PortalLayout>

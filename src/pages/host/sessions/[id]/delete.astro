@@ -1,0 +1,60 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../../../../layouts/PortalLayout.astro';
+import AuthCard from '../../../../components/portal/AuthCard.astro';
+import Field from '../../../../components/portal/Field.astro';
+import Alert from '../../../../components/portal/Alert.astro';
+import { readForm, requireHost } from '../../../../lib/access';
+import { friendlyDbError } from '../../../../lib/errors';
+import { formatDate } from '../../../../lib/stats';
+import { field } from '../../../../lib/validation';
+
+const access = await requireHost(Astro);
+if (access instanceof Response) return access;
+const supabase = Astro.locals.supabase!;
+
+const id = Astro.params.id ?? '';
+if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return new Response(null, { status: 404 });
+const { data: stored, error: loadErr } = await supabase.rpc('host_get_session', { p_session_id: id });
+if (loadErr || !stored) return new Response(null, { status: 404 });
+
+const errors: Record<string, string> = {};
+let formError = '';
+const form = await readForm(Astro);
+if (form) {
+  const reason = field(form, 'reason', 200);
+  if (reason.length < 3) errors.reason = 'Give a short reason (it goes in the audit log).';
+  if (form.get('confirm') !== 'yes') errors.confirm = 'Please tick the box to confirm.';
+  if (!Object.keys(errors).length) {
+    const { error } = await supabase.rpc('host_delete_session', { p_session_id: id, p_reason: reason });
+    if (error) formError = friendlyDbError(error);
+    else return Astro.redirect('/host?notice=deleted', 303);
+  }
+}
+const s = stored.session as { played_on: string; stakes: string; title: string | null };
+const n = (stored.results as unknown[]).length;
+---
+
+<PortalLayout title="Delete session" access={access} current="host" width="narrow">
+  <AuthCard eyebrow="Delete session" title={formatDate(s.played_on)}>
+    <form method="post" class="space-y-6" novalidate>
+      <p class="leading-relaxed text-silver-300">
+        This removes the session ({s.title ?? 'Untitled'} · {s.stakes}) and its {n} result{n === 1 ? '' : 's'}
+        from every player’s dashboard. The audit log keeps a permanent copy of what was deleted.
+        Use this for duplicates or sessions entered by mistake.
+      </p>
+      {formError && <Alert tone="error">{formError}</Alert>}
+      <Field label="Reason" name="reason" maxlength={200} required placeholder="e.g. Duplicate of the Oct 30 session" error={errors.reason} />
+      <label class="flex items-start gap-3 text-sm text-silver-200">
+        <input type="checkbox" name="confirm" value="yes" class="mt-1 size-4 accent-[#d3707f]" />
+        Delete this session.
+      </label>
+      {errors.confirm && <p class="field-error">{errors.confirm}</p>}
+      <div class="flex flex-col gap-3 sm:flex-row">
+        <button type="submit" class="btn-danger flex-1">Delete session</button>
+        <a href={`/host/sessions/${id}`} class="btn-ghost flex-1">Cancel</a>
+      </div>
+    </form>
+  </AuthCard>
+</PortalLayout>

@@ -1,0 +1,37 @@
+---
+interface Props {
+  current: 'sessions' | 'new' | 'players' | 'audit';
+}
+const { current } = Astro.props;
+const items = [
+  { key: 'sessions', href: '/host', label: 'Sessions' },
+  { key: 'new', href: '/host/sessions/new', label: 'New session' },
+  { key: 'players', href: '/host/players', label: 'Players' },
+  { key: 'audit', href: '/host/audit', label: 'Audit log' },
+];
+---
+
+<div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <p class="eyebrow">Host Dashboard</p>
+    <slot />
+  </div>
+  <nav aria-label="Host">
+    <ul class="flex flex-wrap gap-2 text-sm">
+      {items.map((i) => (
+        <li>
+          <a
+            href={i.href}
+            aria-current={i.key === current ? 'page' : undefined}
+            class:list={[
+              'inline-flex min-h-10 items-center rounded-full px-4 transition',
+              i.key === current ? 'bg-silver-100 text-midnight-950' : 'border border-silver-100/15 text-silver-200 hover:border-steel-300/50',
+            ]}
+          >
+            {i.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+</div>

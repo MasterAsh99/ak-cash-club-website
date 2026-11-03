@@ -1,0 +1,65 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../../../layouts/PortalLayout.astro';
+import HostNav from '../../../components/portal/HostNav.astro';
+import SessionForm from '../../../components/portal/SessionForm.astro';
+import Alert from '../../../components/portal/Alert.astro';
+import { requireHost } from '../../../lib/access';
+import { friendlyDbError } from '../../../lib/errors';
+import { handleSessionForm, loadPlayerOptions, type PlayerOption } from '../../../lib/host-session-page';
+import { valuesFromStored } from '../../../lib/session-form';
+import { formatDate } from '../../../lib/stats';
+
+const access = await requireHost(Astro);
+if (access instanceof Response) return access;
+
+const id = Astro.params.id ?? '';
+if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+  return new Response(null, { status: 404 });
+}
+
+const { data: stored, error: loadErr } = await Astro.locals.supabase!.rpc('host_get_session', { p_session_id: id });
+if (loadErr?.message.includes('session_not_found')) return new Response(null, { status: 404 });
+
+let players: PlayerOption[] = [];
+let pageError = loadErr ? friendlyDbError(loadErr) : '';
+if (!loadErr) {
+  try {
+    players = await loadPlayerOptions(Astro);
+  } catch (e) {
+    pageError = e instanceof Error ? e.message : 'Could not load players.';
+  }
+}
+
+const initial = stored ? valuesFromStored(stored) : null;
+const state = initial ? await handleSessionForm(Astro, initial, players, true) : null;
+if (state instanceof Response) return state;
+
+const notices: Record<string, string> = {
+  created: 'Session saved. Tracked players can now see their results on their dashboards.',
+  updated: 'Changes saved and recorded in the audit log.',
+};
+const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
+---
+
+<PortalLayout title="Edit session" access={access} current="host">
+  <HostNav current="sessions">
+    <h1 class="mt-3 text-4xl sm:text-5xl">{initial ? formatDate(initial.played_on) : 'Session'}</h1>
+    {initial?.title && <p class="mt-2 text-silver-300">{initial.title} · {initial.stakes}</p>}
+  </HostNav>
+
+  {notice && <div class="mt-8"><Alert tone="success">{notice}</Alert></div>}
+  {pageError && <div class="mt-8"><Alert tone="error">{pageError}</Alert></div>}
+
+  {state && (
+    <div class="mt-10">
+      <SessionForm state={state} players={players} isEdit={true} />
+    </div>
+  )}
+
+  <div class="mt-10 flex flex-wrap gap-3 border-t border-silver-100/10 pt-8">
+    <a class="btn-ghost" href={`/host/audit?session=${id}`}>View change history</a>
+    <a class="btn-danger" href={`/host/sessions/${id}/delete`}>Delete session…</a>
+  </div>
+</PortalLayout>

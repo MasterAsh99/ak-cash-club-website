@@ -1,0 +1,72 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../layouts/PortalLayout.astro';
+import AuthCard from '../components/portal/AuthCard.astro';
+import Field from '../components/portal/Field.astro';
+import Alert from '../components/portal/Alert.astro';
+import NotConfigured from '../components/portal/NotConfigured.astro';
+import { readForm, safeNext } from '../lib/access';
+import { friendlyAuthError } from '../lib/errors';
+import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../lib/ratelimit';
+import { field, isEmail, rawField } from '../lib/validation';
+
+const supabase = Astro.locals.supabase;
+const next = safeNext(Astro.url.searchParams.get('next'));
+if (Astro.locals.user) return Astro.redirect(next);
+
+let email = '';
+let formError = '';
+let notVerified = false;
+
+const form = await readForm(Astro);
+if (form && supabase) {
+  email = field(form, 'email', 254).toLowerCase();
+  const password = rawField(form, 'password');
+  const target = safeNext(field(form, 'next', 200));
+
+  if (!isEmail(email) || !password) {
+    formError = 'Please enter your email and password.';
+  } else if (!(await allowAuthAttempt(Astro.request, 'login', email))) {
+    formError = RATE_LIMITED_MESSAGE;
+  } else {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      formError = friendlyAuthError(error);
+      notVerified = error.code === 'email_not_confirmed';
+    } else {
+      return Astro.redirect(target);
+    }
+  }
+}
+---
+
+<PortalLayout title="Log in" current="auth" width="narrow">
+  <AuthCard eyebrow="Members" title="Welcome back">
+    {!supabase ? (
+      <NotConfigured />
+    ) : (
+      <form method="post" class="space-y-6" novalidate>
+        {formError && (
+          <Alert tone="error">
+            {formError}
+            {notVerified && (
+              <>
+                {' '}
+                <a class="link" href={`/check-email?for=signup&email=${encodeURIComponent(email)}`}>Resend the link</a>
+              </>
+            )}
+          </Alert>
+        )}
+        <input type="hidden" name="next" value={next} />
+        <Field label="Email" name="email" type="email" autocomplete="email" required value={email} />
+        <Field label="Password" name="password" type="password" autocomplete="current-password" required />
+        <div class="flex justify-end">
+          <a class="text-sm text-silver-300 hover:text-silver-50" href="/forgot-password">Forgot your password?</a>
+        </div>
+        <button type="submit" class="btn-primary w-full">Log in</button>
+      </form>
+    )}
+    <p slot="after">New here? <a class="link" href="/signup">Create an account</a></p>
+  </AuthCard>
+</PortalLayout>

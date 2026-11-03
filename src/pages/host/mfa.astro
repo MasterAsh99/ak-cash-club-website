@@ -1,0 +1,132 @@
+---
+/**
+ * Host two-factor authentication: enrol an authenticator app once, then
+ * verify a 6-digit code each time to unlock the Host Dashboard (aal2).
+ * The database refuses every host action without an aal2 session, so this
+ * page is a convenience, not the enforcement point.
+ */
+export const prerender = false;
+
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import AuthCard from '../../components/portal/AuthCard.astro';
+import Field from '../../components/portal/Field.astro';
+import Alert from '../../components/portal/Alert.astro';
+import { readForm, requireHost } from '../../lib/access';
+import { friendlyAuthError } from '../../lib/errors';
+import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../../lib/ratelimit';
+import { field } from '../../lib/validation';
+
+const access = await requireHost(Astro, { allowAal1: true });
+if (access instanceof Response) return access;
+const mfa = Astro.locals.supabase!.auth.mfa;
+
+const { data: factorData } = await mfa.listFactors();
+const verified = (factorData?.totp ?? []).filter((f) => f.status === 'verified');
+const unverified = (factorData?.all ?? []).filter((f) => f.factor_type === 'totp' && f.status === 'unverified');
+
+let enrolment: { factorId: string; qr: string; secret: string } | null = null;
+
+/** supabase-js returns "data:image/svg+xml;utf-8,<svg…>" unencoded; '#' in the SVG would break it. */
+function safeQr(qr: string): string {
+  const svg = qr.replace(/^data:image\/svg\+xml;[^,]*,/, '');
+  if (!svg.trimStart().startsWith('<svg')) return '';
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+let formError = '';
+let codeError = '';
+
+const form = await readForm(Astro);
+if (form) {
+  const action = field(form, 'action', 20);
+  const code = field(form, 'code', 10).replace(/\s/g, '');
+
+  if (action === 'enroll' && verified.length === 0) {
+    for (const f of unverified) await mfa.unenroll({ factorId: f.id });
+    const { data, error } = await mfa.enroll({ factorType: 'totp', friendlyName: 'AK Cash Club host', issuer: 'AK Cash Club' });
+    if (error || !data) formError = friendlyAuthError(error);
+    else enrolment = { factorId: data.id, qr: safeQr(data.totp.qr_code), secret: data.totp.secret };
+  }
+
+  if (action === 'verify_enroll' || action === 'challenge') {
+    const factorId = action === 'challenge' ? verified[0]?.id : field(form, 'factor_id', 64);
+    if (!(await allowAuthAttempt(Astro.request, 'mfa', access.email))) {
+      formError = RATE_LIMITED_MESSAGE;
+    } else if (!/^\d{6}$/.test(code)) {
+      codeError = 'Enter the 6-digit code from your authenticator app.';
+    } else if (!factorId) {
+      formError = 'Something went wrong. Please start again.';
+    } else {
+      const { error } = await mfa.challengeAndVerify({ factorId, code });
+      if (error) codeError = friendlyAuthError(error);
+      else return Astro.redirect('/host', 303);
+    }
+    if (action === 'verify_enroll' && (codeError || formError)) {
+      // Keep showing the same QR code so they can retry.
+      const pending = (factorData?.all ?? []).find((f) => f.id === field(form, 'factor_id', 64));
+      if (pending) {
+        enrolment = { factorId: pending.id, qr: safeQr(decodeURIComponent(field(form, 'qr', 40000).replace(/^data:image\/svg\+xml;charset=utf-8,/, ''))), secret: field(form, 'secret', 200) };
+      }
+    }
+  }
+}
+
+const mode = access.mfaVerified ? 'done' : verified.length > 0 ? 'challenge' : enrolment ? 'verify_enroll' : 'enroll';
+---
+
+<PortalLayout title="Host verification" access={access} current="host" width="narrow">
+  <AuthCard eyebrow="Host security" title={mode === 'enroll' || mode === 'verify_enroll' ? 'Set up two-factor' : 'Verify it’s you'}>
+    {formError && <div class="mb-5"><Alert tone="error">{formError}</Alert></div>}
+
+    {mode === 'done' && (
+      <div class="space-y-5 text-silver-300">
+        <Alert tone="success">This session is verified with your authenticator app.</Alert>
+        <a href="/host" class="btn-primary w-full">Open Host Dashboard</a>
+      </div>
+    )}
+
+    {mode === 'enroll' && (
+      <form method="post" class="space-y-5">
+        <input type="hidden" name="action" value="enroll" />
+        <p class="leading-relaxed text-silver-300">
+          The host account controls everyone’s results, so it requires a second step at login: a 6-digit
+          code from an authenticator app on your phone (for example Google Authenticator, Microsoft
+          Authenticator, 1Password or Authy).
+        </p>
+        <button type="submit" class="btn-primary w-full">Start setup</button>
+      </form>
+    )}
+
+    {mode === 'verify_enroll' && enrolment && (
+      <form method="post" class="space-y-6" novalidate>
+        <input type="hidden" name="action" value="verify_enroll" />
+        <input type="hidden" name="factor_id" value={enrolment.factorId} />
+        <input type="hidden" name="qr" value={enrolment.qr} />
+        <input type="hidden" name="secret" value={enrolment.secret} />
+        <ol class="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-silver-300">
+          <li>Open your authenticator app and add a new account.</li>
+          <li>Scan this code, or type the setup key below.</li>
+          <li>Enter the 6-digit code the app shows.</li>
+        </ol>
+        <div class="mx-auto w-fit rounded-xl bg-white p-3">
+          <img src={enrolment.qr} alt="QR code for your authenticator app" width="180" height="180" />
+        </div>
+        <p class="text-center text-xs text-silver-400">
+          Setup key: <code class="rounded bg-ink px-2 py-1 font-mono text-silver-100 select-all">{enrolment.secret}</code>
+        </p>
+        <Field label="6-digit code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength={6} required error={codeError} />
+        <button type="submit" class="btn-primary w-full">Verify and finish</button>
+      </form>
+    )}
+
+    {mode === 'challenge' && (
+      <form method="post" class="space-y-6" novalidate>
+        <input type="hidden" name="action" value="challenge" />
+        <p class="leading-relaxed text-silver-300">Enter the 6-digit code from your authenticator app to unlock the Host Dashboard.</p>
+        <Field label="6-digit code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength={6} required autofocus error={codeError} />
+        <button type="submit" class="btn-primary w-full">Verify</button>
+      </form>
+    )}
+
+    <p slot="after">Lost your phone? See “Recovering host access” in SETUP.md.</p>
+  </AuthCard>
+</PortalLayout>

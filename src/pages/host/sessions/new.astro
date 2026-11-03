@@ -1,0 +1,37 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../../../layouts/PortalLayout.astro';
+import HostNav from '../../../components/portal/HostNav.astro';
+import SessionForm from '../../../components/portal/SessionForm.astro';
+import Alert from '../../../components/portal/Alert.astro';
+import { requireHost } from '../../../lib/access';
+import { handleSessionForm, loadPlayerOptions } from '../../../lib/host-session-page';
+import { blankValues } from '../../../lib/session-form';
+
+const access = await requireHost(Astro);
+if (access instanceof Response) return access;
+
+let loadError = '';
+let players: Awaited<ReturnType<typeof loadPlayerOptions>> = [];
+try {
+  players = await loadPlayerOptions(Astro);
+} catch (e) {
+  loadError = e instanceof Error ? e.message : 'Could not load players.';
+}
+
+// Default date: today in Ontario.
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(new Date());
+const state = await handleSessionForm(Astro, blankValues(today), players, false);
+if (state instanceof Response) return state;
+---
+
+<PortalLayout title="New session" access={access} current="host">
+  <HostNav current="new">
+    <h1 class="mt-3 text-4xl sm:text-5xl">Record a session</h1>
+  </HostNav>
+  {loadError && <div class="mt-8"><Alert tone="error">{loadError}</Alert></div>}
+  <div class="mt-10">
+    <SessionForm state={state} players={players} isEdit={false} />
+  </div>
+</PortalLayout>

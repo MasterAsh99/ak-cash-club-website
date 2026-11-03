@@ -1,0 +1,26 @@
+---
+interface Props {
+  label: string;
+  value: string;
+  tone?: 'gain' | 'loss' | 'neutral';
+  detail?: string;
+  large?: boolean;
+}
+const { label, value, tone = 'neutral', detail, large = false } = Astro.props;
+---
+
+<div class="panel h-full p-4 sm:p-6">
+  <p class="text-[0.64rem] font-medium tracking-[0.16em] text-silver-400 uppercase sm:text-[0.68rem] sm:tracking-[0.2em]">{label}</p>
+  <p
+    class:list={[
+      'mt-3 font-serif leading-none tabular-nums',
+      large ? 'text-5xl sm:text-6xl' : 'text-2xl sm:text-[2rem]',
+      tone === 'gain' && 'gain',
+      tone === 'loss' && 'loss',
+      tone === 'neutral' && 'text-silver-50',
+    ]}
+  >
+    {value}
+  </p>
+  {detail && <p class="mt-2 text-xs text-silver-400 sm:text-sm">{detail}</p>}
+</div>

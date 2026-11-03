@@ -1,0 +1,137 @@
+---
+/**
+ * Cumulative profit/loss chart, drawn as SVG on the server (no chart library).
+ * Gains are royal blue, losses muted rose (palette validated for colour-vision
+ * deficiency and contrast); values also carry +/− signs so colour is never the
+ * only cue. A small script adds a hover/tap tooltip; without it, each point
+ * still has a native <title>.
+ */
+import type { ChartModel } from '../../lib/chart';
+
+interface Props {
+  model: ChartModel;
+  /** Unique id prefix when more than one chart is on the page. */
+  uid?: string;
+}
+const { model, uid = 'pl' } = Astro.props;
+const { width, height, plot, zeroY, linePath, areaPath, points, yTicks, xTicks, summary } = model;
+const POS = '#5f8ad3';
+const NEG = '#d3707f';
+---
+
+<figure class="pl-chart relative" data-chart>
+  <svg
+    viewBox={`0 0 ${width} ${height}`}
+    class="block h-auto w-full overflow-visible"
+    role="img"
+    aria-labelledby={`${uid}-title ${uid}-desc`}
+  >
+    <title id={`${uid}-title`}>Cumulative profit and loss</title>
+    <desc id={`${uid}-desc`}>{summary}</desc>
+    <defs>
+      <clipPath id={`${uid}-above`}><rect x="0" y="0" width={width} height={zeroY} /></clipPath>
+      <clipPath id={`${uid}-below`}><rect x="0" y={zeroY} width={width} height={height - zeroY} /></clipPath>
+      <linearGradient id={`${uid}-gain-fill`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color={POS} stop-opacity="0.32" />
+        <stop offset="100%" stop-color={POS} stop-opacity="0.02" />
+      </linearGradient>
+      <linearGradient id={`${uid}-loss-fill`} x1="0" y1="1" x2="0" y2="0">
+        <stop offset="0%" stop-color={NEG} stop-opacity="0.30" />
+        <stop offset="100%" stop-color={NEG} stop-opacity="0.02" />
+      </linearGradient>
+    </defs>
+
+    <!-- recessive grid + y labels -->
+    <g aria-hidden="true">
+      {
+        yTicks.map((t) => (
+          <g>
+            <line x1={plot.left} x2={plot.right} y1={t.y} y2={t.y} stroke="#ccd3dd" stroke-opacity="0.08" />
+            <text x={plot.left - 10} y={t.y} dy="0.32em" text-anchor="end" fill="#8d98a9" font-size={width < 500 ? 12 : 11} font-family="Inter Variable, sans-serif">
+              {t.label}
+            </text>
+          </g>
+        ))
+      }
+      {
+        xTicks.map((t) => (
+          <text x={t.x} y={plot.bottom + 24} text-anchor="middle" fill="#8d98a9" font-size={width < 500 ? 12 : 11} font-family="Inter Variable, sans-serif">
+            {t.label}
+          </text>
+        ))
+      }
+    </g>
+
+    <!-- area: blue above break-even, rose below -->
+    <path d={areaPath} fill={`url(#${uid}-gain-fill)`} clip-path={`url(#${uid}-above)`} />
+    <path d={areaPath} fill={`url(#${uid}-loss-fill)`} clip-path={`url(#${uid}-below)`} />
+
+    <!-- break-even line -->
+    <line x1={plot.left} x2={plot.right} y1={zeroY} y2={zeroY} stroke="#aeb8c6" stroke-opacity="0.45" stroke-dasharray="3 4" />
+    <text x={plot.right} y={zeroY - 6} text-anchor="end" fill="#aeb8c6" font-size="10" letter-spacing="1.5" font-family="Inter Variable, sans-serif" aria-hidden="true">
+      BREAK-EVEN
+    </text>
+
+    <!-- line (2px), coloured by side of break-even -->
+    <path d={linePath} fill="none" stroke={POS} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" clip-path={`url(#${uid}-above)`} />
+    <path d={linePath} fill="none" stroke={NEG} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" clip-path={`url(#${uid}-below)`} />
+
+    <!-- crosshair (shown by script) -->
+    <line data-crosshair x1="0" x2="0" y1={plot.top} y2={plot.bottom} stroke="#e6eaf0" stroke-opacity="0.35" visibility="hidden" />
+
+    <!-- points: 8px markers with a surface ring; hit targets larger than marks -->
+    {
+      points.map((p, i) => (
+        <g data-point={i} data-label={p.label} data-x={p.x} data-y={p.y}>
+          <circle cx={p.x} cy={p.y} r="4" fill={p.total >= 0n ? POS : NEG} stroke="#0a1120" stroke-width="2" />
+          <circle cx={p.x} cy={p.y} r="14" fill="transparent">
+            <title>{p.label}</title>
+          </circle>
+        </g>
+      ))
+    }
+  </svg>
+  <div
+    data-tooltip
+    role="status"
+    class="pointer-events-none absolute top-0 left-0 hidden max-w-[16rem] -translate-x-1/2 -translate-y-[calc(100%+12px)] rounded-lg border border-silver-100/15 bg-midnight-950/95 px-3 py-2 text-xs leading-relaxed text-silver-100 shadow-xl"
+  >
+  </div>
+</figure>
+
+<script>
+  // Hover/tap tooltip + crosshair. Purely presentational.
+  for (const fig of document.querySelectorAll<HTMLElement>('[data-chart]')) {
+    const svg = fig.querySelector('svg')!;
+    const tip = fig.querySelector<HTMLElement>('[data-tooltip]')!;
+    const cross = fig.querySelector<SVGLineElement>('[data-crosshair]')!;
+    const pts = [...fig.querySelectorAll<SVGGElement>('[data-point]')].map((g) => ({
+      x: Number(g.dataset.x),
+      y: Number(g.dataset.y),
+      label: g.dataset.label ?? '',
+    }));
+    if (!pts.length) continue;
+    const vb = svg.viewBox.baseVal;
+
+    const show = (clientX: number) => {
+      const r = svg.getBoundingClientRect();
+      const vx = ((clientX - r.left) / r.width) * vb.width;
+      let best = pts[0]!;
+      for (const p of pts) if (Math.abs(p.x - vx) < Math.abs(best.x - vx)) best = p;
+      cross.setAttribute('x1', String(best.x));
+      cross.setAttribute('x2', String(best.x));
+      cross.setAttribute('visibility', 'visible');
+      tip.textContent = best.label;
+      tip.style.left = `${(best.x / vb.width) * r.width}px`;
+      tip.style.top = `${(best.y / vb.height) * r.height}px`;
+      tip.classList.remove('hidden');
+    };
+    const hide = () => {
+      cross.setAttribute('visibility', 'hidden');
+      tip.classList.add('hidden');
+    };
+    svg.addEventListener('pointermove', (e) => show(e.clientX));
+    svg.addEventListener('pointerdown', (e) => show(e.clientX));
+    svg.addEventListener('pointerleave', hide);
+  }
+</script>

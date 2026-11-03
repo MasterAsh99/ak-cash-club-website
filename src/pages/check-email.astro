@@ -1,0 +1,73 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../layouts/PortalLayout.astro';
+import AuthCard from '../components/portal/AuthCard.astro';
+import Field from '../components/portal/Field.astro';
+import Alert from '../components/portal/Alert.astro';
+import { readForm } from '../lib/access';
+import { siteUrl } from '../lib/env';
+import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../lib/ratelimit';
+import { field, isEmail } from '../lib/validation';
+
+const supabase = Astro.locals.supabase;
+const kind = Astro.url.searchParams.get('for') === 'reset' ? 'reset' : 'signup';
+let email = (Astro.url.searchParams.get('email') ?? '').slice(0, 254);
+let notice = '';
+let formError = '';
+
+const form = await readForm(Astro);
+if (form && supabase) {
+  email = field(form, 'email', 254).toLowerCase();
+  if (!isEmail(email)) {
+    formError = 'Please enter a valid email address.';
+  } else if (!(await allowAuthAttempt(Astro.request, 'resend', email))) {
+    formError = RATE_LIMITED_MESSAGE;
+  } else {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: `${siteUrl(Astro.url)}/auth/confirm` },
+    });
+    if (error) console.error('resend failed', error.code);
+    // Always the same message (no account enumeration).
+    notice = 'If that address has an account waiting for verification, a new link is on its way.';
+  }
+}
+---
+
+<PortalLayout title="Check your email" current="auth" width="narrow">
+  <AuthCard eyebrow="Almost there" title="Check your email">
+    <div class="space-y-5 text-silver-300">
+      {
+        kind === 'signup' ? (
+          <p class="leading-relaxed">
+            If the address you entered can be used, we’ve sent a link to verify it. Open the email from
+            AK Cash Club and tap <span class="text-silver-50">Verify my email</span> to finish setting up
+            your account. The link expires after a while, so use it soon.
+          </p>
+        ) : (
+          <p class="leading-relaxed">
+            If an account exists for that address, we’ve sent a link to choose a new password. The link
+            can only be used once and expires after a while.
+          </p>
+        )
+      }
+      <p class="text-sm leading-relaxed text-silver-400">
+        Nothing yet? Check your spam or promotions folder. It can take a minute or two.
+      </p>
+
+      {
+        kind === 'signup' && supabase && (
+          <form method="post" class="space-y-4 border-t border-silver-100/10 pt-6" novalidate>
+            {notice && <Alert tone="success">{notice}</Alert>}
+            {formError && <Alert tone="error">{formError}</Alert>}
+            <Field label="Resend the verification link" name="email" type="email" autocomplete="email" value={email} placeholder="you@example.com" />
+            <button type="submit" class="btn-ghost w-full">Resend link</button>
+          </form>
+        )
+      }
+    </div>
+    <p slot="after"><a class="link" href="/login">Back to log in</a></p>
+  </AuthCard>
+</PortalLayout>

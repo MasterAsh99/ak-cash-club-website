@@ -10,8 +10,8 @@ import { nav, instagramDmUrl } from '../config/site';
 >
   <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:h-20 sm:px-8">
     <a href="#top" class="rounded-full" aria-label="AK Cash Club — back to top">
-      <span class="sm:hidden"><Logo showWordmark={false} priority /></span>
-      <span class="hidden sm:block"><Logo priority /></span>
+      <span class="sm:hidden xl:block 2xl:hidden"><Logo showWordmark={false} priority /></span>
+      <span class="hidden sm:block xl:hidden 2xl:block"><Logo priority /></span>
     </a>
 
     <nav aria-label="Primary" class="hidden xl:block">
@@ -29,6 +29,10 @@ import { nav, instagramDmUrl } from '../config/site';
     </nav>
 
     <div class="flex items-center gap-2">
+      <!-- Understated member links. data-member-* swaps to "My Dashboard" when signed in. -->
+      <a href="/login" data-member-link class="hidden min-h-10 items-center px-3 text-[0.78rem] tracking-[0.14em] whitespace-nowrap text-silver-300 uppercase transition-colors hover:text-silver-50 md:inline-flex">
+        Log in
+      </a>
       <a href={instagramDmUrl} target="_blank" rel="noopener" class="btn-ghost hidden min-h-10 px-5 whitespace-nowrap sm:inline-flex">
         <InstagramIcon />
         Reserve a seat
@@ -75,10 +79,16 @@ import { nav, instagramDmUrl } from '../config/site';
         ))
       }
     </ul>
-    <a href={instagramDmUrl} target="_blank" rel="noopener" class="btn-primary w-full" data-close-menu>
-      <InstagramIcon />
-      Reserve a seat on Instagram
-    </a>
+    <div class="space-y-3">
+      <div class="flex gap-3 text-sm" data-guest-only>
+        <a href="/login" class="btn-ghost flex-1" data-member-link data-close-menu>Log in</a>
+        <a href="/signup" class="btn-ghost flex-1" data-close-menu>Sign up</a>
+      </div>
+      <a href={instagramDmUrl} target="_blank" rel="noopener" class="btn-primary w-full" data-close-menu>
+        <InstagramIcon />
+        Reserve a seat on Instagram
+      </a>
+    </div>
   </nav>
 </div>
 
@@ -92,6 +102,15 @@ import { nav, instagramDmUrl } from '../config/site';
 </style>
 
 <script>
+  // Signed-in hint (set by the member area; grants nothing by itself).
+  if (document.cookie.split('; ').includes('akc_member=1')) {
+    for (const a of document.querySelectorAll<HTMLAnchorElement>('[data-member-link]')) {
+      a.href = '/dashboard';
+      a.textContent = 'My Dashboard';
+    }
+    for (const el of document.querySelectorAll<HTMLElement>('[data-guest-only] a[href="/signup"]')) el.remove();
+  }
+
   const header = document.getElementById('site-header')!;
   const toggle = document.getElementById('menu-toggle')!;
   const menu = document.getElementById('mobile-menu')!;

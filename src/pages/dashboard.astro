@@ -1,0 +1,198 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../layouts/PortalLayout.astro';
+import Alert from '../components/portal/Alert.astro';
+import StatTile from '../components/portal/StatTile.astro';
+import PerformanceChart from '../components/portal/PerformanceChart.astro';
+import { requireMember } from '../lib/access';
+import { buildChart } from '../lib/chart';
+import { formatCents } from '../lib/money';
+import { computeStats, formatDate, type ResultRow } from '../lib/stats';
+
+const access = await requireMember(Astro);
+if (access instanceof Response) return access;
+
+let rows: ResultRow[] = [];
+let loadError = false;
+if (access.trackingEnabled) {
+  const { data, error } = await Astro.locals.supabase!.rpc('get_my_results');
+  if (error) {
+    console.error('get_my_results failed', error.message);
+    loadError = true;
+  } else {
+    rows = (data ?? []) as ResultRow[];
+  }
+}
+const stats = computeStats(rows);
+const chart = buildChart(stats);
+const chartSmall = buildChart(stats, 360, 260);
+const tone = (c: bigint) => (c > 0n ? 'gain' : c < 0n ? 'loss' : 'neutral') as 'gain' | 'loss' | 'neutral';
+
+const notices: Record<string, string> = {
+  verified: 'Your email is verified. Welcome to AK Cash Club.',
+  'password-updated': 'Your password has been updated.',
+};
+const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
+---
+
+<PortalLayout title="My Dashboard" access={access} current="dashboard">
+  <header class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="eyebrow">My Dashboard</p>
+      <h1 class="mt-3 text-4xl sm:text-5xl">Good to see you, {access.username}.</h1>
+    </div>
+    {access.trackingEnabled && stats.sessions > 0 && (
+      <p class="text-sm text-silver-400">All amounts in Canadian dollars</p>
+    )}
+  </header>
+
+  {notice && <div class="mt-8"><Alert tone="success">{notice}</Alert></div>}
+  {loadError && <div class="mt-8"><Alert tone="error">We couldn’t load your results just now. Please refresh in a moment.</Alert></div>}
+
+  {
+    access.isHost ? (
+      <section class="panel mt-10 p-8 text-center sm:p-12">
+        <p class="eyebrow">Host account</p>
+        <h2 class="mt-4 text-3xl">Results are managed from the Host Dashboard.</h2>
+        <p class="mx-auto mt-4 max-w-lg text-silver-300">The host account doesn’t track its own play.</p>
+        <a href="/host" class="btn-primary mt-8">Open Host Dashboard</a>
+      </section>
+    ) : !access.trackingEnabled ? (
+      <section class="panel mt-10 overflow-hidden p-8 sm:p-12" aria-labelledby="optin-title">
+        <p class="eyebrow">Private performance tracking</p>
+        <h2 id="optin-title" class="mt-4 max-w-2xl text-3xl sm:text-4xl">Keep a private record of every session.</h2>
+        <p class="mt-5 max-w-2xl leading-relaxed text-silver-300">
+          Turn on tracking and the host can link your results to your account. You’ll see your lifetime
+          result, every session, and a chart of how you’re doing over time. Only you and the host can see
+          them. Tracking is off until you choose to turn it on.
+        </p>
+        <a href="/account#tracking" class="btn-primary mt-8">Review and turn on tracking</a>
+      </section>
+    ) : stats.sessions === 0 ? (
+      <section class="panel mt-10 p-8 text-center sm:p-14">
+        <span class="font-serif text-5xl text-steel-400" aria-hidden="true">♠</span>
+        <h2 class="mt-6 text-3xl sm:text-4xl">Your record starts at your next game.</h2>
+        <p class="mx-auto mt-4 max-w-lg leading-relaxed text-silver-300">
+          Tracking is on. Once the host records a session you played in, your results and chart will
+          appear here.
+        </p>
+      </section>
+    ) : (
+      <>
+        <section aria-labelledby="summary-title" class="mt-10">
+          <h2 id="summary-title" class="sr-only">Summary</h2>
+          <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[1.3fr_1fr_1fr]">
+            <div class="col-span-2 lg:col-span-1"><StatTile
+              large
+              label="Lifetime result"
+              value={formatCents(stats.lifetimeNet, { signed: true })}
+              tone={tone(stats.lifetimeNet)}
+              detail={`Across ${stats.sessions} session${stats.sessions === 1 ? '' : 's'} · ${stats.winningSessions} up, ${stats.losingSessions} down`}
+            /></div>
+            <StatTile label="Sessions played" value={String(stats.sessions)} />
+            <StatTile
+              label="Average per session"
+              value={stats.averageNet === null ? '—' : formatCents(stats.averageNet, { signed: true })}
+              tone={stats.averageNet === null ? 'neutral' : tone(stats.averageNet)}
+            />
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-4">
+            <StatTile label="Total buy-ins" value={formatCents(stats.totalBuyIns)} detail="Including rebuys and top-ups" />
+            <StatTile label="Total cash-outs" value={formatCents(stats.totalCashOuts)} />
+            <StatTile
+              label="Biggest win"
+              value={stats.biggestWin ? formatCents(stats.biggestWin.net, { signed: true }) : '—'}
+              tone={stats.biggestWin ? 'gain' : 'neutral'}
+              detail={stats.biggestWin ? formatDate(stats.biggestWin.playedOn) : 'No winning session yet'}
+            />
+            <StatTile
+              label="Biggest loss"
+              value={stats.biggestLoss ? formatCents(stats.biggestLoss.net, { signed: true }) : '—'}
+              tone={stats.biggestLoss ? 'loss' : 'neutral'}
+              detail={stats.biggestLoss ? formatDate(stats.biggestLoss.playedOn) : 'No losing session yet'}
+            />
+          </div>
+        </section>
+
+        {chart && (
+          <section class="panel mt-4 p-5 sm:p-8" aria-labelledby="chart-title">
+            <div class="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 id="chart-title" class="text-2xl sm:text-3xl">Performance over time</h2>
+              <p class="text-xs tracking-[0.16em] text-silver-400 uppercase">Running total after each session</p>
+            </div>
+            <div class="mt-6 hidden sm:block">
+              <PerformanceChart model={chart} uid="pl-lg" />
+            </div>
+            {chartSmall && (
+              <div class="mt-5 sm:hidden">
+                <PerformanceChart model={chartSmall} uid="pl-sm" />
+              </div>
+            )}
+          </section>
+        )}
+
+        <section class="panel mt-4 overflow-hidden" aria-labelledby="recent-title">
+          <div class="flex items-baseline justify-between px-5 pt-6 sm:px-8">
+            <h2 id="recent-title" class="text-2xl sm:text-3xl">Recent sessions</h2>
+            <p class="hidden text-xs text-silver-400 sm:block">Net = cash-out − buy-ins</p>
+          </div>
+          <!-- Phones: compact list so the net result is always visible -->
+          <ul class="mt-4 divide-y divide-silver-100/10 border-t border-silver-100/10 sm:hidden">
+            {stats.recent.map((r) => (
+              <li class="flex items-start justify-between gap-4 px-5 py-4">
+                <div>
+                  <p class="text-silver-100">{formatDate(r.playedOn)}</p>
+                  <p class="mt-0.5 text-xs text-silver-400">
+                    {r.stakes}{r.title && ` · ${r.title}`}
+                  </p>
+                  <p class="mt-1 text-xs tabular-nums text-silver-400">
+                    In {formatCents(r.buyIn)} · Out {formatCents(r.cashOut)}
+                  </p>
+                </div>
+                <p class:list={['font-serif text-2xl tabular-nums', tone(r.net) === 'neutral' ? 'text-silver-100' : tone(r.net)]}>
+                  {formatCents(r.net, { signed: true })}
+                </p>
+              </li>
+            ))}
+          </ul>
+          <div class="mt-4 hidden overflow-x-auto sm:block">
+            <table class="w-full min-w-[34rem] text-left text-sm">
+              <caption class="sr-only">Your most recent sessions</caption>
+              <thead>
+                <tr class="border-y border-silver-100/10 text-[0.68rem] tracking-[0.16em] text-silver-400 uppercase">
+                  <th scope="col" class="px-5 py-3 font-medium sm:px-8">Date</th>
+                  <th scope="col" class="px-3 py-3 font-medium">Stakes</th>
+                  <th scope="col" class="px-3 py-3 text-right font-medium">Buy-ins</th>
+                  <th scope="col" class="px-3 py-3 text-right font-medium">Cash-out</th>
+                  <th scope="col" class="px-5 py-3 text-right font-medium sm:px-8">Net</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-silver-100/10 tabular-nums">
+                {stats.recent.map((r) => (
+                  <tr>
+                    <th scope="row" class="px-5 py-4 font-normal text-silver-100 sm:px-8">
+                      {formatDate(r.playedOn)}
+                      {r.title && <span class="block text-xs text-silver-400">{r.title}</span>}
+                    </th>
+                    <td class="px-3 py-4 text-silver-300">{r.stakes}</td>
+                    <td class="px-3 py-4 text-right text-silver-300">{formatCents(r.buyIn)}</td>
+                    <td class="px-3 py-4 text-right text-silver-300">{formatCents(r.cashOut)}</td>
+                    <td class:list={['px-5 py-4 text-right font-medium sm:px-8', tone(r.net) === 'neutral' ? 'text-silver-100' : tone(r.net)]}>
+                      {formatCents(r.net, { signed: true })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {stats.sessions > stats.recent.length && (
+            <p class="px-5 py-4 text-xs text-silver-400 sm:px-8">
+              Showing your {stats.recent.length} most recent of {stats.sessions} sessions. The totals and chart above include all of them.
+            </p>
+          )}
+        </section>
+      </>
+    )
+  }
+</PortalLayout>
