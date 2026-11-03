@@ -11,7 +11,6 @@ informational, and all contact goes through Instagram DM.
 
 ## Before launch: checklist
 
-- [ ] **Instagram handle.** Set `instagramHandle` in `src/config/site.ts` to the club's real handle (currently a placeholder, `akcashclub`). Every Instagram link and button on the site uses it.
 - [ ] **Logo.** Add the official logo (see [Swapping in the official logo](#swapping-in-the-official-logo)).
 - [ ] **Domain.** Update `site` in `astro.config.mjs` to the production URL so canonical and share links are correct.
 - [ ] **Copy review.** Read through each section and adjust the wording to the club's voice.
@@ -105,7 +104,7 @@ analytics, for example), you'll need to allow that domain in the CSP.
 
 ## Editing guide
 
-- **Text and details:** most settings are in `src/config/site.ts`. The section copy is in each
+- **Text and details:** most settings, including the Instagram handle (`@akcashclub`), are in `src/config/site.ts`. The section copy is in each
   component under `src/components/`, written as plain HTML.
 - **Game information panel:** edit the `gameDetails` list in `src/config/site.ts`.
 - **Reordering or removing sections:** edit `src/pages/index.astro`, and update `nav` in

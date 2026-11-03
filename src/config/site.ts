@@ -16,10 +16,7 @@ export const site = {
   description:
     'AK Cash Club is a private poker home game in London, Ontario — low-to-medium-stakes No-Limit Texas Hold’em cash games with complimentary food and drinks. Seats by Instagram DM.',
 
-  /**
-   * Instagram handle WITHOUT the "@".
-   * TODO: replace with the club's real handle before launch.
-   */
+  /** Instagram handle WITHOUT the "@". Used for every Instagram link and button. */
   instagramHandle: 'akcashclub',
 } as const;
 
