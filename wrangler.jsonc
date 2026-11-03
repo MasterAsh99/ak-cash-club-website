@@ -1,0 +1,12 @@
+{
+  // Cloudflare Workers config for this static site.
+  // Workers Builds runs `npm run build`, then deploys the files in ./dist.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ak-cash-club-website",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist",
+    // Serve our custom 404 page for unknown URLs.
+    "not_found_handling": "404-page"
+  }
+}
