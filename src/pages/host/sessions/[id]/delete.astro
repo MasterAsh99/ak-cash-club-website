@@ -29,7 +29,7 @@ if (form) {
   if (!Object.keys(errors).length) {
     const { error } = await supabase.rpc('host_delete_session', { p_session_id: id, p_reason: reason });
     if (error) formError = friendlyDbError(error);
-    else return Astro.redirect('/host?notice=deleted', 303);
+    else return Astro.redirect('/host/sessions?notice=deleted', 303);
   }
 }
 const s = stored.session as { played_on: string; stakes: string; title: string | null };

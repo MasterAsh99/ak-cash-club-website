@@ -71,6 +71,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   res.headers.set('X-Frame-Options', 'DENY');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
-  res.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  // The home page is public and may be indexed; everything else rendered on
+  // demand is member-only.
+  if (url.pathname !== '/') res.headers.set('X-Robots-Tag', 'noindex, nofollow');
   return res;
 });

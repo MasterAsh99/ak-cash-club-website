@@ -4,18 +4,15 @@
  * member area actually does. Review with a lawyer before launch (see
  * docs/COMPLIANCE_CHECKLIST.md).
  */
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Logo from '../components/Logo.astro';
+import PortalLayout from '../layouts/PortalLayout.astro';
 import { site, instagramUrl } from '../config/site';
 
 const updated = 'November 2026';
 ---
 
-<BaseLayout title={`Privacy · ${site.name}`} description="How AK Cash Club handles member account information.">
-  <main id="main" class="min-h-dvh bg-[radial-gradient(90%_40%_at_50%_0%,#12244a_0%,#0a1120_35%,#05070c_75%)] px-5 py-16 sm:px-8">
+<PortalLayout title="Privacy" description="How AK Cash Club handles member account information." indexable>
     <article class="mx-auto max-w-2xl">
-      <a href="/" class="inline-block rounded-full"><Logo /></a>
-      <p class="eyebrow mt-12">Privacy notice</p>
+      <p class="eyebrow">Privacy notice</p>
       <h1 class="mt-4 text-4xl sm:text-5xl">Your information at AK Cash Club</h1>
       <p class="mt-3 text-sm text-silver-400">Last updated {updated}</p>
 
@@ -27,7 +24,8 @@ const updated = 'November 2026';
             <li><strong>Your consent choice:</strong> whether performance tracking is on, and when you turned it on.</li>
             <li><strong>Session results, only if you opt in:</strong> the date and stakes of sessions you played, your buy-ins, rebuys and top-ups, your cash-out and your net result.</li>
             <li><strong>Your Poker Log, only if you use it:</strong> games you record yourself from outside AK Cash Club (date, where, format, buy-in, cash-out, length and notes). Only you can see it in the website (as with account emails, the site’s operator could technically see it in the database admin tools, but it isn’t shown or used).</li>
-            <li><strong>Seat requests, if you use Game Nights:</strong> which games you asked to join, any note you left for the host, and whether your seat was confirmed. Other members only ever see how many seats are taken, never who is coming.</li>
+            <li><strong>Seats at games:</strong> which games you asked to join or the host added you to, any note you left for the host, and your status (requested, confirmed, waitlisted). Other members see confirmed players only as a first initial and five asterisks (for example “A*****”), never your full username.</li>
+            <li><strong>Guests without an account:</strong> when the host adds a guest to a game, the host records the guest’s name so they know who is attending. Only the host can see it; everyone else sees “Guest 1”, “Guest 2” and so on. Guest names on the game list are deleted automatically 12 months after the game. A guest can ask the host to remove their name at any time. Guests are never given an account, and if a guest later signs up, past games are not linked to their account automatically.</li>
             <li><strong>Hand notes and play settings, only if you use them:</strong> hands you write down, and any loss limit, session reminder or break you set. Only you can see them; the host can’t.</li>
             <li><strong>Email preferences:</strong> which notification emails you’ve chosen to receive, and when you opted in to the optional ones.</li>
             <li><strong>Security records:</strong> a permanent log of changes to results and consent (what changed, when, and by which account).</li>
@@ -85,8 +83,7 @@ const updated = 'November 2026';
 
       <a href="/" class="btn-ghost mt-12">Back to the home page</a>
     </article>
-  </main>
-</BaseLayout>
+</PortalLayout>
 
 <style>
   .prose-portal :global(h2) {

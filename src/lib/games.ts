@@ -6,8 +6,8 @@ import { field } from './validation';
 
 export const CLUB_TZ = 'America/Toronto';
 
-export type SeatStatus = 'requested' | 'confirmed' | 'waitlisted' | 'declined' | 'cancelled';
-export type NightStatus = 'open' | 'closed' | 'cancelled';
+export type SeatStatus = 'requested' | 'confirmed' | 'waitlisted' | 'declined' | 'cancelled' | 'completed';
+export type NightStatus = 'open' | 'closed' | 'cancelled' | 'completed';
 
 export interface GameNightRow {
   game_night_id: string;
@@ -55,12 +55,28 @@ export function torontoDate(iso: string | Date): string {
 }
 
 export const SEAT_LABELS: Record<SeatStatus, string> = {
-  requested: 'Requested',
+  requested: 'Requested · not confirmed yet',
   confirmed: 'Seat confirmed',
   waitlisted: 'On the waitlist',
   declined: 'Not this time',
   cancelled: 'Cancelled',
+  completed: 'Completed',
 };
+
+/** What the member sees for their own seat (a played game shows as Completed). */
+export function myStatus(nightStatus: NightStatus, seat: SeatStatus | null): SeatStatus | null {
+  if (nightStatus === 'completed' && seat === 'confirmed') return 'completed';
+  return seat;
+}
+
+export function isFull(n: { seats: number; confirmed_count: number }): boolean {
+  return n.confirmed_count >= n.seats;
+}
+
+/** Can the member ask for a seat (or the waitlist) right now? */
+export function canRequest(n: { status: NightStatus; starts_at: string; my_status: SeatStatus | null }): boolean {
+  return n.status === 'open' && new Date(n.starts_at) > new Date() && (!n.my_status || n.my_status === 'cancelled');
+}
 
 export function seatsLeft(n: { seats: number; confirmed_count: number }): number {
   return Math.max(0, n.seats - n.confirmed_count);
@@ -76,6 +92,7 @@ export interface GameNightForm {
   arrival_note: string;
   status: 'open' | 'closed';
   announce: boolean;
+  auto_fill_waitlist: boolean;
 }
 
 export function parseGameNightForm(form: FormData): { values: GameNightForm; errors: Record<string, string> } {
@@ -92,6 +109,7 @@ export function parseGameNightForm(form: FormData): { values: GameNightForm; err
     arrival_note: field(form, 'arrival_note', 300),
     status: form.get('status') === 'closed' ? 'closed' : 'open',
     announce: form.get('announce') === 'yes',
+    auto_fill_waitlist: form.get('auto_fill_waitlist') === 'yes',
   };
   const errors: Record<string, string> = {};
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) errors.date = 'Please choose a date.';

@@ -1,0 +1,19 @@
+---
+/** Shown when the member's own break or monthly loss limit pauses seat requests. */
+import Alert from './Alert.astro';
+import { formatGameTime } from '../../lib/games';
+import { onBreak, type Wellbeing } from '../../lib/wellbeing';
+interface Props { wellbeing: Wellbeing | null }
+const { wellbeing } = Astro.props;
+const brk = onBreak(wellbeing);
+const limit = Boolean(wellbeing?.limit_reached);
+---
+
+{(brk || limit) && (
+  <div class="mt-6">
+    <Alert tone="info" title={brk ? 'You’re taking a break' : 'Monthly loss limit reached'}>
+      {brk ? `Seat requests are paused until ${formatGameTime(wellbeing!.break_until!)}.` : 'You’ve reached the limit you set for this month, so seat requests are paused until next month.'}
+      {' '}<a class="link" href="/account#play-safely">Your settings</a>
+    </Alert>
+  </div>
+)}

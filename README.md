@@ -10,13 +10,14 @@ It's a mobile-first site built with [Astro](https://astro.build) and
 
 It has two parts:
 
-- **The public site**: pre-built pages (home, privacy) served as static files.
+- **The public site**: the home page (Sign up / Log in for visitors, games for members),
+  About the Club and the privacy notice.
 - **The member area**: player accounts and private performance tracking, with a host-only
   administration area. These pages are rendered on demand by the same Worker, using
   [Supabase](https://supabase.com) for login and the database.
 
-There are no payments, deposits or online gambling anywhere on the site, and seats are
-still arranged by Instagram DM.
+There are no payments, deposits or online gambling anywhere on the site. Members request
+seats in Upcoming Games; the host confirms them. Instagram is for contact and updates only.
 
 | Guide | What’s in it |
 | --- | --- |
@@ -115,33 +116,22 @@ analytics, for example), you'll need to allow that domain in the CSP.
 │   │                          validation, Supabase client, page guards, rate limits)
 │   ├── layouts/
 │   │   ├── BaseLayout.astro   <head>, SEO tags, scroll-reveal script
-│   │   └── PortalLayout.astro Member-area layout and navigation
-│   ├── components/          One file per page section
-│   │   ├── Header.astro       Sticky header + mobile menu
-│   │   ├── Hero.astro         Cinematic opening section
-│   │   ├── About.astro        The club
-│   │   ├── Game.astro         The game + "Game information" panel
-│   │   ├── Equipment.astro    Table + cards (links to Straight Poker Supplies)
-│   │   ├── Hospitality.astro  Free food, non-alcoholic drinks, alcohol policy (BYOB)
-│   │   ├── Promotions.astro   High hands & jackpots
-│   │   ├── Contact.astro      Instagram DM call-to-action
-│   │   ├── Footer.astro
-│   │   ├── Logo.astro         Emblem (header, hero, footer, 404)
-│   │   ├── SectionHeading.astro
-│   │   ├── InstagramIcon.astro
-│   │   └── portal/            Member-area components (forms, stat tiles, chart, session editor)
+│   │   └── PortalLayout.astro The one site layout: header (About the Club, Log in/Sign up or Log out),
+│   │                          member links, phone bottom tab bar, footer
+│   ├── components/
+│   │   ├── Logo.astro         Emblem
+│   │   └── portal/            Game cards, seat badges, forms, stat tiles, chart, session editor…
 │   └── pages/
-│       ├── index.astro      The home page (assembles the sections)
+│       ├── index.astro      Home: Sign up / Log in (signed out) or your games + upcoming games (signed in)
+│       ├── about.astro      About the Club: games, equipment, food & drinks, promotions, info, contact
+│       ├── games/           Upcoming games and each game's page (request a seat, waitlist, who's playing)
 │       ├── privacy.astro    Privacy notice
-│       ├── 404.astro
-│       ├── signup, login, check-email, forgot-password, logout
-│       ├── auth/confirm     Landing page for every emailed link
-│       ├── dashboard        Player dashboard
-│       ├── poker-log/       My Poker Log: a member’s private record of games outside the club
-│       ├── account          Username, tracking consent, email preferences, app install, password, email, deletion
-│       ├── unsubscribe      One-click-to-confirm unsubscribe link from notification emails
-│       ├── offline          Shown by the installed app without a connection
-│       └── host/            Host-only: sessions (with payments), players, expenses, audit log, two-factor
+│       ├── signup, login, check-email, forgot-password, logout, auth/confirm
+│       ├── dashboard        Player results dashboard
+│       ├── poker-log/       Outside games, all results (filters), hand notes
+│       ├── account          Profile, tracking consent, email preferences, play limits, app install, password, deletion
+│       ├── unsubscribe, offline, 404
+│       └── host/            Host-only: games (add players/guests, waitlist), live game, results, players, expenses, audit log
 ├── supabase/
 │   ├── migrations/          Database tables, security rules and functions
 │   ├── templates/           Branded verification / reset / email-change emails
@@ -155,13 +145,12 @@ analytics, for example), you'll need to allow that domain in the CSP.
 
 ## Editing guide
 
-- **Text and details:** most settings, including the Instagram handle (`@akcashclub`), are in `src/config/site.ts`. The section copy is in each
-  component under `src/components/`, written as plain HTML.
+- **Text and details:** most settings, including the Instagram handle (`@akcashclub`), are in `src/config/site.ts`.
+  The home page copy is in `src/pages/index.astro`; About the Club is `src/pages/about.astro`.
 - **Game information panel:** edit the `gameDetails` list in `src/config/site.ts`.
 - **Equipment links** (Straight Poker Supplies, the Manhattan table, KEM cards): edit `links` in
   `src/config/site.ts`.
-- **Reordering or removing sections:** edit `src/pages/index.astro`, and update `nav` in
-  `src/config/site.ts` to match.
+- **About the Club sections:** edit the `sections` list and content in `src/pages/about.astro`.
 - **Colours and fonts:** edit the `@theme` block at the top of `src/styles/global.css`.
   - Midnight navy: `midnight-*`, black: `ink`, steel blue: `steel-*`, metallic silver: `silver-*`
   - Headings use Cormorant Garamond and body text uses Inter. Both are self-hosted through

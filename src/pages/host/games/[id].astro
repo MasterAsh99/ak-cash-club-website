@@ -1,14 +1,19 @@
 ---
+/**
+ * Host view of one game: who's confirmed (with guests' real names), new
+ * requests, the waitlist (reorderable), and an Add Player panel for members
+ * (search by username) or guests (real name, host-only).
+ */
 export const prerender = false;
 
 import PortalLayout from '../../../layouts/PortalLayout.astro';
 import HostNav from '../../../components/portal/HostNav.astro';
 import Alert from '../../../components/portal/Alert.astro';
-import SeatBadge from '../../../components/portal/SeatBadge.astro';
 import GameNightFormView from '../../../components/portal/GameNightForm.astro';
 import { readForm, requireHost } from '../../../lib/access';
 import { friendlyDbError } from '../../../lib/errors';
 import { formatGameTime, parseGameNightForm, type GameNightForm, type NightStatus, type SeatStatus } from '../../../lib/games';
+import { field } from '../../../lib/validation';
 
 const access = await requireHost(Astro);
 if (access instanceof Response) return access;
@@ -19,16 +24,55 @@ const supabase = Astro.locals.supabase!;
 let errors: Record<string, string> = {};
 let formError = '';
 let actionError = '';
+let addError = '';
 let posted: GameNightForm | null = null;
+const back = (notice: string, anchor = 'players') => Astro.redirect(`/host/games/${id}?notice=${notice}#${anchor}`, 303);
 
 const form = await readForm(Astro);
 if (form) {
-  const action = form.get('action');
+  const action = field(form, 'action', 30);
+  const seat = field(form, 'seat', 36);
+  const status = field(form, 'status', 20);
+  const fail = (e: { message?: string; code?: string }) => { actionError = friendlyDbError(e); };
+
   if (action === 'decide') {
-    const status = String(form.get('status') ?? '');
-    const { error } = await supabase.rpc('host_decide_seat', { p_request_id: String(form.get('request_id') ?? ''), p_status: status });
-    if (error) actionError = friendlyDbError(error);
-    else return Astro.redirect(`/host/games/${id}?notice=${status}#requests`, 303);
+    const { error } = await supabase.rpc('host_decide_seat', { p_request_id: seat, p_status: status });
+    if (error) fail(error); else return back(status);
+  }
+  if (action === 'remove') {
+    const { error } = await supabase.rpc('host_remove_seat', { p_seat_id: seat });
+    if (error) fail(error); else return back('removed');
+  }
+  if (action === 'move') {
+    const { error } = await supabase.rpc('host_move_waitlist', { p_seat_id: seat, p_direction: form.get('direction') === 'down' ? 'down' : 'up' });
+    if (error) fail(error); else return back('moved', 'waitlist');
+  }
+  if (action === 'rename_guest') {
+    const { error } = await supabase.rpc('host_rename_guest', { p_seat_id: seat, p_guest_name: field(form, 'guest_name', 60) });
+    if (error) fail(error); else return back('renamed');
+  }
+  if (action === 'add_member' || action === 'add_guest') {
+    const addStatus = ['confirmed', 'waitlisted', 'requested'].includes(status) ? status : 'confirmed';
+    let playerId: string | null = null;
+    let guestName: string | null = null;
+    if (action === 'add_member') {
+      const name = field(form, 'username', 40);
+      if (!name) addError = 'Type a username and choose it from the list.';
+      else {
+        const { data: found } = await supabase.rpc('host_list_players', { p_query: name, p_limit: 50 });
+        const match = ((found ?? []) as Array<{ player_id: string; username: string }>).find((p) => p.username.toLowerCase() === name.toLowerCase());
+        if (!match) addError = `No member called “${name}”. Check the spelling, or add them as a guest.`;
+        else playerId = match.player_id;
+      }
+    } else {
+      guestName = field(form, 'guest_name', 60);
+      if (!guestName) addError = 'Enter the guest’s name.';
+    }
+    if (!addError) {
+      const { error } = await supabase.rpc('host_add_seat', { p_game_night_id: id, p_player_id: playerId, p_guest_name: guestName, p_status: addStatus });
+      if (error) addError = friendlyDbError(error);
+      else return back('added');
+    }
   }
   if (action === 'save') {
     const parsed = parseGameNightForm(form);
@@ -37,134 +81,283 @@ if (form) {
     if (!Object.keys(errors).length) {
       const { error } = await supabase.rpc('host_save_game_night', { p_game_night: { ...parsed.values, id, announce: false } });
       if (error) formError = friendlyDbError(error);
-      else return Astro.redirect(`/host/games/${id}?notice=saved`, 303);
+      else return back('saved', 'top');
     }
+  }
+  if (action === 'complete_game') {
+    const { error } = await supabase.rpc('host_complete_game_night', { p_id: id });
+    if (error) fail(error); else return back('completed', 'top');
   }
   if (action === 'cancel_game') {
     if (form.get('confirm') !== 'yes') actionError = 'Tick the box to confirm cancelling this game.';
     else {
       const { error } = await supabase.rpc('host_cancel_game_night', { p_id: id });
-      if (error) actionError = friendlyDbError(error);
-      else return Astro.redirect(`/host/games/${id}?notice=game-cancelled`, 303);
+      if (error) fail(error); else return back('game-cancelled', 'top');
     }
   }
 }
 
-interface Req { id: string; username: string; status: SeatStatus; note: string | null; queued_at: string }
+interface Seat { id: string; player_id: string | null; username: string | null; guest_number: number | null; guest_name: string | null; status: SeatStatus; note: string | null; queued_at: string }
 interface Night {
   id: string; starts_at: string; starts_local: string; game_type: string; stakes: string; seats: number;
-  notes: string | null; status: NightStatus; address: string | null; arrival_note: string | null; requests: Req[];
+  notes: string | null; status: NightStatus; auto_fill_waitlist: boolean; address: string | null; arrival_note: string | null; requests: Seat[];
 }
-const { data, error } = await supabase.rpc('host_get_game_night', { p_id: id });
+const [{ data, error }, { data: memberData }] = await Promise.all([
+  supabase.rpc('host_get_game_night', { p_id: id }),
+  supabase.rpc('host_list_players', { p_query: null, p_limit: 200 }),
+]);
 if (error && /game_night_not_found/.test(error.message)) return new Response(null, { status: 404 });
 const n = data as Night | null;
 
 const values: GameNightForm | null = posted ?? (n ? {
   starts_local: n.starts_local, game_type: n.game_type === 'No-Limit Texas Hold\'em' ? '' : n.game_type,
   stakes: n.stakes, seats: n.seats, notes: n.notes ?? '', address: n.address ?? '', arrival_note: n.arrival_note ?? '',
-  status: n.status === 'closed' ? 'closed' : 'open', announce: false,
+  status: n.status === 'closed' ? 'closed' : 'open', announce: false, auto_fill_waitlist: n.auto_fill_waitlist,
 } : null);
 
 const notices: Record<string, string> = {
-  created: 'Game night opened. Members can now request seats.',
+  created: 'Game created. Members can now request seats. Use Add player for anyone you’ve already invited.',
   saved: 'Changes saved.',
-  confirmed: 'Seat confirmed. The player will be emailed (if they have seat updates on).',
-  waitlisted: 'Added to the waitlist. They’ll move up automatically if a seat opens.',
+  added: 'Player added.',
+  removed: 'Removed from this game.',
+  renamed: 'Guest name updated.',
+  moved: 'Waitlist order updated.',
+  confirmed: 'Seat confirmed. Members are emailed if they have seat updates on.',
+  waitlisted: 'Moved to the waitlist.',
+  requested: 'Moved back to requested.',
   declined: 'Request declined.',
-  'game-cancelled': 'Game cancelled. Everyone with a seat or request will be emailed.',
+  completed: 'Game marked as completed.',
+  'game-cancelled': 'Game cancelled. Everyone with a seat or request who has an account will be emailed.',
 };
 const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
-const groups = n ? {
-  requested: n.requests.filter((r) => r.status === 'requested'),
-  confirmed: n.requests.filter((r) => r.status === 'confirmed'),
-  waitlisted: n.requests.filter((r) => r.status === 'waitlisted'),
-  other: n.requests.filter((r) => r.status === 'declined' || r.status === 'cancelled'),
-} : null;
-const full = n && groups ? groups.confirmed.length >= n.seats : false;
-const editable = n?.status !== 'cancelled';
+const seats = n?.requests ?? [];
+const by = (s: SeatStatus) => seats.filter((r) => r.status === s);
+const confirmed = by('confirmed');
+const requested = by('requested');
+const waitlist = [...by('waitlisted')].sort((a, b) => a.queued_at.localeCompare(b.queued_at));
+const others = seats.filter((r) => r.status === 'declined' || r.status === 'cancelled');
+const full = n ? confirmed.length >= n.seats : false;
+const editable = n ? n.status !== 'cancelled' && n.status !== 'completed' : false;
+const inGame = new Set(seats.filter((r) => ['requested', 'confirmed', 'waitlisted'].includes(r.status)).map((r) => r.player_id));
+const members = ((memberData ?? []) as Array<{ player_id: string; username: string }>).filter((m) => !inGame.has(m.player_id));
+const nameOf = (r: Seat) => r.guest_number ? (r.guest_name ?? `Guest ${r.guest_number} (name removed)`) : (r.username ?? 'Deleted account');
+const statusLabel: Record<NightStatus, string> = { open: 'Open for requests', closed: 'Requests closed', cancelled: 'Cancelled', completed: 'Completed' };
 ---
 
-<PortalLayout title="Game night" access={access} current="host">
+<PortalLayout title="Game" access={access} current="host">
   <HostNav current="games">
-    <h1 class="mt-3 text-3xl sm:text-4xl">{n ? formatGameTime(n.starts_at) : 'Game night'}</h1>
-    {n && <p class="mt-2 text-sm text-silver-400">{n.stakes} · {n.game_type} · {groups!.confirmed.length}/{n.seats} confirmed</p>}
+    <a href="/host" class="text-sm text-silver-400 hover:text-silver-100">← Games</a>
+    <h1 id="top" class="mt-3 scroll-mt-28 text-3xl leading-tight sm:text-4xl">{n ? formatGameTime(n.starts_at) : 'Game'}</h1>
+    {n && <p class="mt-1 text-sm text-silver-400">{n.stakes} · {n.game_type} · {statusLabel[n.status]}</p>}
   </HostNav>
 
-  {notice && <div class="mt-8"><Alert tone="success">{notice}</Alert></div>}
-  {actionError && <div class="mt-8"><Alert tone="error">{actionError}</Alert></div>}
-  {error && !n && <div class="mt-8"><Alert tone="error">{friendlyDbError(error)}</Alert></div>}
-  {n?.status === 'cancelled' && <div class="mt-8"><Alert tone="error">This game night is cancelled.</Alert></div>}
+  {notice && <div class="mt-6" role="status"><Alert tone="success">{notice}</Alert></div>}
+  {actionError && <div class="mt-6" role="alert"><Alert tone="error">{actionError}</Alert></div>}
+  {error && !n && <div class="mt-6"><Alert tone="error">{friendlyDbError(error)}</Alert></div>}
 
-  {n && groups && (
+  {n && (
     <>
-      <section id="requests" class="panel mt-8 scroll-mt-28 overflow-hidden" aria-labelledby="req-title">
-        <h2 id="req-title" class="px-5 pt-6 text-2xl sm:px-8">Seats</h2>
-        {n.requests.length === 0 ? (
-          <p class="px-5 py-8 text-silver-400 sm:px-8">No requests yet.</p>
-        ) : (
-          <ul class="mt-4 divide-y divide-silver-100/10 border-t border-silver-100/10">
-            {[...groups.requested, ...groups.confirmed, ...groups.waitlisted, ...groups.other].map((r) => (
-              <li class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
-                <div class="min-w-0">
-                  <p class="flex flex-wrap items-center gap-3">
-                    <span class="text-silver-50">{r.username}</span>
-                    <SeatBadge status={r.status} position={r.status === 'waitlisted' ? groups.waitlisted.indexOf(r) + 1 : null} />
-                  </p>
-                  {r.note && <p class="mt-1 text-sm text-silver-400">“{r.note}”</p>}
-                </div>
-                {editable && r.status !== 'cancelled' && (
-                  <form method="post" class="flex flex-wrap gap-2">
-                    <input type="hidden" name="action" value="decide" />
-                    <input type="hidden" name="request_id" value={r.id} />
-                    {r.status !== 'confirmed' && (
-                      <button type="submit" name="status" value="confirmed" class="btn-primary min-h-10 px-4 text-sm" disabled={full}>Confirm</button>
-                    )}
-                    {r.status !== 'waitlisted' && (
-                      <button type="submit" name="status" value="waitlisted" class="btn-ghost min-h-10 px-4 text-sm">Waitlist</button>
-                    )}
-                    {r.status !== 'declined' && (
-                      <button type="submit" name="status" value="declined" class="btn-ghost min-h-10 px-4 text-sm">Decline</button>
-                    )}
-                  </form>
-                )}
-              </li>
-            ))}
-          </ul>
+      <dl class="mt-6 grid grid-cols-3 gap-2 rounded-2xl border border-silver-100/10 bg-midnight-900/60 p-3 text-center">
+        <div><dt class="text-xs text-silver-400">Confirmed</dt><dd class="mt-1 text-xl tabular-nums text-silver-50">{confirmed.length}/{n.seats}</dd></div>
+        <div><dt class="text-xs text-silver-400">To review</dt><dd class="mt-1 text-xl tabular-nums text-silver-50">{requested.length}</dd></div>
+        <div><dt class="text-xs text-silver-400">Waitlist</dt><dd class="mt-1 text-xl tabular-nums text-silver-50">{waitlist.length}</dd></div>
+      </dl>
+
+      {editable && (
+        <details id="add" class="panel mt-4 scroll-mt-28 p-5 sm:p-6" open={Boolean(addError) || seats.length === 0}>
+          <summary class="flex cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">
+            <span class="btn-primary pointer-events-none">+ Add player</span>
+            <span class="text-xs text-silver-400">Member or guest</span>
+          </summary>
+          {addError && <div class="mt-4" role="alert"><Alert tone="error">{addError}</Alert></div>}
+          <div class="mt-5 grid gap-6 md:grid-cols-2">
+            <form method="post" class="grid gap-3" aria-labelledby="add-member-title">
+              <input type="hidden" name="action" value="add_member" />
+              <h3 id="add-member-title" class="text-lg text-silver-50">Registered player</h3>
+              <label class="grid gap-1.5">
+                <span class="label !mb-0">Search usernames</span>
+                <input name="username" list="member-list" autocomplete="off" class="input" placeholder="Start typing, e.g. AriC" />
+                <datalist id="member-list">{members.map((m) => <option value={m.username} />)}</datalist>
+              </label>
+              <div class="flex flex-wrap items-end gap-2">
+                <select name="status" class="input w-auto" aria-label="Status for the new player">
+                  <option value="confirmed">Confirmed seat</option>
+                  <option value="waitlisted">Waitlist</option>
+                  <option value="requested">Requested</option>
+                </select>
+                <button type="submit" class="btn-ghost">Add player</button>
+              </div>
+              <p class="hint !mt-0">Linked to their account and shown on their games. Results are only tracked if they’ve turned tracking on.</p>
+            </form>
+            <form method="post" class="grid gap-3" aria-labelledby="add-guest-title">
+              <input type="hidden" name="action" value="add_guest" />
+              <h3 id="add-guest-title" class="text-lg text-silver-50">Guest (no account)</h3>
+              <label class="grid gap-1.5">
+                <span class="label !mb-0">Guest’s name</span>
+                <input name="guest_name" maxlength="60" autocomplete="off" class="input" placeholder="e.g. John Smith" />
+              </label>
+              <div class="flex flex-wrap items-end gap-2">
+                <select name="status" class="input w-auto" aria-label="Status for the new guest">
+                  <option value="confirmed">Confirmed seat</option>
+                  <option value="waitlisted">Waitlist</option>
+                </select>
+                <button type="submit" class="btn-ghost">Add guest</button>
+              </div>
+              <p class="hint !mt-0">Only you see the name. Members see “Guest 1”, “Guest 2”… Names are deleted 12 months after the game.</p>
+            </form>
+          </div>
+        </details>
+      )}
+
+      <section id="players" class="mt-4 grid scroll-mt-28 gap-4" aria-label="Players">
+        <div class="panel overflow-hidden">
+          <h2 class="flex items-baseline justify-between px-5 pt-5 text-2xl sm:px-6">Confirmed <span class="font-sans text-sm text-silver-400 tabular-nums">{confirmed.length}/{n.seats}</span></h2>
+          {confirmed.length === 0 ? <p class="px-5 py-5 text-sm text-silver-400 sm:px-6">Nobody confirmed yet.</p> : (
+            <ul class="mt-3 divide-y divide-silver-100/10 border-t border-silver-100/10">
+              {confirmed.map((r) => (
+                <li class="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
+                  <div class="min-w-0">
+                    <p class="text-silver-50">{nameOf(r)} {r.guest_number && <span class="ml-1 rounded-full bg-silver-100/5 px-2 py-0.5 text-xs text-silver-400 ring-1 ring-silver-100/15">Guest {r.guest_number}</span>}</p>
+                    {r.note && <p class="text-xs text-silver-400">“{r.note}”</p>}
+                  </div>
+                  {editable && (
+                    <div class="flex flex-wrap gap-1.5">
+                      <form method="post"><input type="hidden" name="action" value="decide" /><input type="hidden" name="seat" value={r.id} /><input type="hidden" name="status" value="waitlisted" />
+                        <button type="submit" class="btn-ghost min-h-9 px-3 text-xs">Move to waitlist</button></form>
+                      <form method="post"><input type="hidden" name="action" value="remove" /><input type="hidden" name="seat" value={r.id} />
+                        <button type="submit" class="min-h-9 px-2 text-xs text-silver-400 hover:text-[#f1c4cb]">Remove</button></form>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {requested.length > 0 && (
+          <div class="panel overflow-hidden border-[#d9b25f]/30">
+            <h2 class="px-5 pt-5 text-2xl sm:px-6">Requests to review</h2>
+            <ul class="mt-3 divide-y divide-silver-100/10 border-t border-silver-100/10">
+              {requested.map((r) => (
+                <li class="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
+                  <div class="min-w-0">
+                    <p class="text-silver-50">{nameOf(r)}</p>
+                    {r.note && <p class="text-xs text-silver-400">“{r.note}”</p>}
+                  </div>
+                  {editable && (
+                    <div class="flex flex-wrap gap-1.5">
+                      {['confirmed', 'waitlisted', 'declined'].map((s) => (
+                        <form method="post">
+                          <input type="hidden" name="action" value="decide" /><input type="hidden" name="seat" value={r.id} /><input type="hidden" name="status" value={s} />
+                          <button type="submit" class:list={[s === 'confirmed' ? 'btn-primary' : 'btn-ghost', 'min-h-9 px-3 text-xs']} disabled={s === 'confirmed' && full}>
+                            {s === 'confirmed' ? 'Confirm' : s === 'waitlisted' ? 'Waitlist' : 'Decline'}
+                          </button>
+                        </form>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {full && <p class="border-t border-silver-100/10 px-5 py-3 text-xs text-silver-400 sm:px-6">The table is full. Waitlist requests, or raise the capacity under Edit game.</p>}
+          </div>
         )}
-        {full && groups.requested.length > 0 && editable && (
-          <p class="border-t border-silver-100/10 px-5 py-4 text-sm text-silver-400 sm:px-8">The table is full. Waitlist new requests, or add a seat below.</p>
+
+        <div id="waitlist" class="panel scroll-mt-28 overflow-hidden">
+          <h2 class="px-5 pt-5 text-2xl sm:px-6">Waitlist</h2>
+          <p class="px-5 pt-1 text-xs text-silver-400 sm:px-6">{n.auto_fill_waitlist ? 'Open seats are filled from the top automatically.' : 'You choose who gets an open seat. Players see their position.'}</p>
+          {waitlist.length === 0 ? <p class="px-5 py-5 text-sm text-silver-400 sm:px-6">Nobody on the waitlist.</p> : (
+            <ol class="mt-3 divide-y divide-silver-100/10 border-t border-silver-100/10">
+              {waitlist.map((r, i) => (
+                <li class="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
+                  <p class="min-w-0 text-silver-50"><span class="mr-2 text-sm text-silver-400 tabular-nums">{i + 1}.</span>{nameOf(r)}{r.guest_number && <span class="ml-2 text-xs text-silver-400">Guest {r.guest_number}</span>}</p>
+                  {editable && (
+                    <div class="flex flex-wrap gap-1.5">
+                      <form method="post"><input type="hidden" name="action" value="move" /><input type="hidden" name="seat" value={r.id} /><input type="hidden" name="direction" value="up" />
+                        <button type="submit" class="btn-ghost min-h-9 px-3 text-xs" disabled={i === 0} aria-label={`Move ${nameOf(r)} up`}>↑</button></form>
+                      <form method="post"><input type="hidden" name="action" value="move" /><input type="hidden" name="seat" value={r.id} /><input type="hidden" name="direction" value="down" />
+                        <button type="submit" class="btn-ghost min-h-9 px-3 text-xs" disabled={i === waitlist.length - 1} aria-label={`Move ${nameOf(r)} down`}>↓</button></form>
+                      <form method="post"><input type="hidden" name="action" value="decide" /><input type="hidden" name="seat" value={r.id} /><input type="hidden" name="status" value="confirmed" />
+                        <button type="submit" class="btn-primary min-h-9 px-3 text-xs" disabled={full}>Give seat</button></form>
+                      <form method="post"><input type="hidden" name="action" value="remove" /><input type="hidden" name="seat" value={r.id} />
+                        <button type="submit" class="min-h-9 px-2 text-xs text-silver-400 hover:text-[#f1c4cb]">Remove</button></form>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+
+        {seats.some((r) => r.guest_number && r.guest_name) && editable && (
+          <details class="rounded-2xl border border-silver-100/10 p-5 sm:p-6">
+            <summary class="cursor-pointer text-sm text-silver-200">Edit guest names</summary>
+            <ul class="mt-4 grid gap-3">
+              {seats.filter((r) => r.guest_number && r.guest_name).map((r) => (
+                <li>
+                  <form method="post" class="flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="action" value="rename_guest" /><input type="hidden" name="seat" value={r.id} />
+                    <label class="min-w-48 flex-1"><span class="label">Guest {r.guest_number}</span>
+                      <input name="guest_name" value={r.guest_name} maxlength="60" class="input" autocomplete="off" /></label>
+                    <button type="submit" class="btn-ghost min-h-11 px-4 text-sm">Save</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        {others.length > 0 && (
+          <details class="rounded-2xl border border-silver-100/10 p-5 sm:p-6">
+            <summary class="cursor-pointer text-sm text-silver-300">Declined or cancelled ({others.length})</summary>
+            <ul class="mt-3 grid gap-2 text-sm">
+              {others.map((r) => (
+                <li class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-silver-300">{nameOf(r)} · {r.status}</span>
+                  {editable && r.status === 'declined' && (
+                    <form method="post"><input type="hidden" name="action" value="decide" /><input type="hidden" name="seat" value={r.id} /><input type="hidden" name="status" value="requested" />
+                      <button type="submit" class="link text-xs">Reconsider</button></form>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
       </section>
 
-      {editable && (
-        <section class="panel mt-4 flex flex-wrap items-center justify-between gap-4 p-5 sm:p-8" aria-label="Live game">
+      {n.status !== 'cancelled' && (
+        <section class="panel mt-4 flex flex-wrap items-center justify-between gap-4 p-5 sm:p-6" aria-label="Live game">
           <div>
             <h2 class="text-2xl">Live game</h2>
-            <p class="mt-1 text-sm text-silver-400">At the table: check players in, record buy-ins and cash-outs, then record the session in one step.</p>
+            <p class="mt-1 text-sm text-silver-400">At the table: check in, record buy-ins and cash-outs, then save the results in one step.</p>
           </div>
           <a href={`/host/live/${n.id}`} class="btn-primary">Open live game</a>
         </section>
       )}
 
       {editable && values && (
-        <section class="panel mt-4 p-5 sm:p-8" aria-labelledby="edit-title">
-          <details open={Object.keys(errors).length > 0 || !!formError}>
-            <summary class="cursor-pointer text-2xl" id="edit-title">Edit game night</summary>
-            <div class="mt-6"><GameNightFormView values={values} errors={errors} isEdit formError={formError} /></div>
-          </details>
-        </section>
+        <details class="panel mt-4 p-5 sm:p-6" open={Object.keys(errors).length > 0 || !!formError}>
+          <summary class="cursor-pointer text-2xl">Edit game</summary>
+          <div class="mt-6"><GameNightFormView values={values} errors={errors} isEdit formError={formError} /></div>
+        </details>
       )}
 
       {editable && (
-        <section class="panel mt-4 border-[#d3707f]/25 p-5 sm:p-8" aria-labelledby="cancel-title">
-          <h2 id="cancel-title" class="text-2xl">Cancel this game</h2>
-          <form method="post" class="mt-4" novalidate>
+        <section class="mt-4 grid gap-4 md:grid-cols-2">
+          <form method="post" class="rounded-2xl border border-silver-100/10 p-5 sm:p-6">
+            <input type="hidden" name="action" value="complete_game" />
+            <h2 class="text-lg text-silver-50">Mark as completed</h2>
+            <p class="mt-1 text-sm text-silver-400">After the game. Finalizing a live game does this for you.</p>
+            <button type="submit" class="btn-ghost mt-4">Mark completed</button>
+          </form>
+          <form method="post" class="rounded-2xl border border-[#d3707f]/25 p-5 sm:p-6" novalidate>
             <input type="hidden" name="action" value="cancel_game" />
-            <label class="flex items-start gap-3 text-sm text-silver-200">
+            <h2 class="text-lg text-silver-50">Cancel this game</h2>
+            <label class="mt-3 flex items-start gap-3 text-sm text-silver-200">
               <input type="checkbox" name="confirm" value="yes" class="mt-1 size-4 accent-[#d3707f]" />
-              Cancel the game and email everyone with a seat or request.
+              Cancel and email everyone with a seat or request.
             </label>
-            <button type="submit" class="btn-danger mt-4">Cancel game night</button>
+            <button type="submit" class="btn-danger mt-4">Cancel game</button>
           </form>
         </section>
       )}

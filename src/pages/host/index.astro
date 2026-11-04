@@ -1,108 +1,99 @@
 ---
+/** Host dashboard home: upcoming games first, with what needs attention. */
 export const prerender = false;
 
 import PortalLayout from '../../layouts/PortalLayout.astro';
 import HostNav from '../../components/portal/HostNav.astro';
 import Alert from '../../components/portal/Alert.astro';
-import { requireHost } from '../../lib/access';
+import { readForm, requireHost } from '../../lib/access';
 import { friendlyDbError } from '../../lib/errors';
-import { formatCents, toCents } from '../../lib/money';
-import { formatDate } from '../../lib/stats';
+import { formatGameTime, type NightStatus } from '../../lib/games';
+import { field } from '../../lib/validation';
 
 const access = await requireHost(Astro);
 if (access instanceof Response) return access;
+const supabase = Astro.locals.supabase!;
 
-const page = Math.max(0, Math.min(1000, Number.parseInt(Astro.url.searchParams.get('page') ?? '0', 10) || 0));
-const PAGE = 25;
-const { data, error } = await Astro.locals.supabase!.rpc('host_list_sessions', { p_limit: PAGE + 1, p_offset: page * PAGE });
-type Row = {
-  session_id: string; played_on: string; stakes: string; title: string | null; game_type: string;
-  player_count: number; total_buy_in_cents: unknown; total_net_cents: unknown; unexplained_cents: unknown;
-  payouts_outstanding: number;
-};
-const all = (data ?? []) as Row[];
-const sessions = all.slice(0, PAGE);
-const hasMore = all.length > PAGE;
-// Seat requests waiting for a decision (if game nights are set up).
-const { data: nightData } = await Astro.locals.supabase!.rpc('host_list_game_nights', { p_include_past: false });
-const pendingRequests = ((nightData ?? []) as Array<{ requested_count: number; status: string }>)
-  .filter((g) => g.status !== 'cancelled')
-  .reduce((sum, g) => sum + g.requested_count, 0);
-const notice = Astro.url.searchParams.get('notice') === 'deleted' ? 'The session was deleted. The audit log keeps a full record of it.' : '';
+let annMsg: { tone: 'success' | 'error'; text: string } | null = null;
+const form = await readForm(Astro);
+if (form?.get('action') === 'announcement') {
+  const body = form.get('clear') === 'yes' ? '' : field(form, 'body', 300);
+  const { error } = await supabase.rpc('host_set_announcement', { p_body: body || null });
+  annMsg = error ? { tone: 'error', text: friendlyDbError(error) } : { tone: 'success', text: body ? 'Announcement posted. Members see it on their home screen.' : 'Announcement removed.' };
+}
+
+const showPast = Astro.url.searchParams.get('past') === '1';
+type Row = { game_night_id: string; starts_at: string; stakes: string; seats: number; status: NightStatus;
+             requested_count: number; confirmed_count: number; waitlist_count: number; guest_count: number };
+const [{ data, error }, { data: ann }] = await Promise.all([
+  supabase.rpc('host_list_game_nights', { p_include_past: showPast }),
+  supabase.rpc('get_announcement'),
+]);
+const rows = (data ?? []) as Row[];
+const now = new Date();
+const waiting = rows.filter((r) => r.status !== 'cancelled' && new Date(r.starts_at) > now).reduce((s, r) => s + r.requested_count, 0);
+const notices: Record<string, string> = { 'game-cancelled': 'Game cancelled.' };
+const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
+const statusLabel: Record<NightStatus, string> = { open: 'Open', closed: 'Requests closed', cancelled: 'Cancelled', completed: 'Completed' };
 ---
 
-<PortalLayout title="Host Dashboard" access={access} current="host">
-  <HostNav current="sessions">
-    <h1 class="mt-3 text-4xl sm:text-5xl">Sessions</h1>
+<PortalLayout title="Host dashboard" access={access} current="host">
+  <HostNav current="games">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <h1 class="text-4xl sm:text-5xl">Games</h1>
+      <a href="/host/games/new" class="btn-primary">Create game</a>
+    </div>
   </HostNav>
 
-  {notice && <div class="mt-8"><Alert tone="success">{notice}</Alert></div>}
-  {pendingRequests > 0 && (
-    <a href="/host/games" class="panel mt-8 flex items-center justify-between gap-4 p-5 transition hover:border-steel-300/40 sm:px-8">
-      <span class="text-silver-100">{pendingRequests} seat request{pendingRequests === 1 ? '' : 's'} waiting for you</span>
-      <span class="text-sm text-steel-300">Review →</span>
-    </a>
+  {notice && <div class="mt-6"><Alert tone="success">{notice}</Alert></div>}
+  {error && <div class="mt-6"><Alert tone="error">{friendlyDbError(error)}</Alert></div>}
+  {waiting > 0 && (
+    <p class="mt-6 rounded-2xl border border-[#d9b25f]/35 bg-[#d9b25f]/10 px-5 py-4 text-sm text-[#f3e6c4]">
+      {waiting} seat request{waiting === 1 ? '' : 's'} waiting for you. Open the game to confirm or waitlist.
+    </p>
   )}
-  {error && <div class="mt-8"><Alert tone="error">{friendlyDbError(error)}</Alert></div>}
 
-  {!error && sessions.length === 0 && page === 0 ? (
-    <section class="panel mt-10 p-10 text-center">
-      <h2 class="text-3xl">No sessions recorded yet.</h2>
-      <p class="mx-auto mt-3 max-w-md text-silver-300">Record your first game to start building each player’s history.</p>
-      <a href="/host/sessions/new" class="btn-primary mt-8">Record a session</a>
-    </section>
-  ) : (
-    <section class="panel mt-10 overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full min-w-[46rem] text-left text-sm tabular-nums">
-          <caption class="sr-only">Recorded sessions, newest first</caption>
-          <thead>
-            <tr class="border-b border-silver-100/10 text-[0.68rem] tracking-[0.16em] text-silver-400 uppercase">
-              <th scope="col" class="px-5 py-4 font-medium sm:px-8">Date</th>
-              <th scope="col" class="px-3 py-4 font-medium">Session</th>
-              <th scope="col" class="px-3 py-4 text-right font-medium">Players</th>
-              <th scope="col" class="px-3 py-4 text-right font-medium">Buy-ins</th>
-              <th scope="col" class="px-3 py-4 text-right font-medium">Payouts</th>
-              <th scope="col" class="px-5 py-4 text-right font-medium sm:px-8">Reconciliation</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-silver-100/10">
-            {sessions.map((s) => {
-              const unexplained = toCents(s.unexplained_cents);
-              return (
-                <tr class="transition-colors hover:bg-silver-100/[0.03]">
-                  <th scope="row" class="px-5 py-4 font-normal sm:px-8">
-                    <a class="link" href={`/host/sessions/${s.session_id}`}>{formatDate(s.played_on)}</a>
-                  </th>
-                  <td class="px-3 py-4 text-silver-300">{s.title ?? 'Untitled'} · {s.stakes}</td>
-                  <td class="px-3 py-4 text-right text-silver-300">{s.player_count}</td>
-                  <td class="px-3 py-4 text-right text-silver-300">{formatCents(toCents(s.total_buy_in_cents))}</td>
-                  <td class="px-3 py-4 text-right">
-                    {Number(s.payouts_outstanding) === 0 ? (
-                      <span class="text-silver-200">✓ Done</span>
-                    ) : (
-                      <a class="loss underline-offset-4 hover:underline" href={`/host/sessions/${s.session_id}#payments`}>{s.payouts_outstanding} to pay</a>
-                    )}
-                  </td>
-                  <td class="px-5 py-4 text-right sm:px-8">
-                    {unexplained === 0n ? (
-                      <span class="text-silver-200">✓ Balanced</span>
-                    ) : (
-                      <span class="loss">! {formatCents(unexplained, { signed: true })} unexplained</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+  <section class="mt-6" aria-labelledby="list-title">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 id="list-title" class="text-2xl">{showPast ? 'All games' : 'Upcoming'}</h2>
+      <a class="link text-sm" href={showPast ? '/host' : '/host?past=1'}>{showPast ? 'Upcoming only' : 'Show past games'}</a>
+    </div>
+    {rows.length === 0 && <p class="mt-4 rounded-2xl border border-silver-100/10 p-6 text-silver-400">No games yet. <a class="link" href="/host/games/new">Create one</a>.</p>}
+    <ul class="mt-4 grid gap-3">
+      {rows.map((r) => (
+        <li>
+          <a href={`/host/games/${r.game_night_id}`} class="panel block p-4 transition hover:border-steel-300/40 sm:p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-lg text-silver-50 sm:text-xl">{formatGameTime(r.starts_at)}</p>
+                <p class="text-sm text-silver-400">{r.stakes} · {statusLabel[r.status]}{new Date(r.starts_at) < now && r.status !== 'cancelled' && r.status !== 'completed' ? ' · past' : ''}</p>
+              </div>
+              {r.requested_count > 0 && r.status !== 'cancelled' && (
+                <span class="rounded-full bg-[#d9b25f]/10 px-3 py-1 text-xs font-medium text-[#eedcae] ring-1 ring-[#d9b25f]/35">{r.requested_count} to review</span>
+              )}
+            </div>
+            <dl class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              <div class="flex gap-1.5"><dt class="text-silver-400">Confirmed</dt><dd class="tabular-nums text-silver-50">{r.confirmed_count}/{r.seats}</dd></div>
+              <div class="flex gap-1.5"><dt class="text-silver-400">Waitlist</dt><dd class="tabular-nums text-silver-50">{r.waitlist_count}</dd></div>
+              <div class="flex gap-1.5"><dt class="text-silver-400">Guests</dt><dd class="tabular-nums text-silver-50">{r.guest_count}</dd></div>
+            </dl>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section class="panel mt-8 p-5 sm:p-8" aria-labelledby="ann-title">
+    <h2 id="ann-title" class="text-2xl">Announcement</h2>
+    <p class="mt-1 text-sm text-silver-400">A short note shown at the top of every member’s home screen. Leave empty for none.</p>
+    {annMsg && <div class="mt-4"><Alert tone={annMsg.tone}>{annMsg.text}</Alert></div>}
+    <form method="post" class="mt-4 grid gap-3">
+      <input type="hidden" name="action" value="announcement" />
+      <textarea name="body" maxlength="280" rows="2" class="input" placeholder="e.g. Sunday’s game starts 30 minutes later than usual.">{(ann as string | null) ?? ''}</textarea>
+      <div class="flex flex-wrap gap-3">
+        <button type="submit" class="btn-ghost">Post announcement</button>
+        {ann && <button type="submit" name="clear" value="yes" class="min-h-11 px-2 text-sm text-silver-400 hover:text-silver-100">Remove</button>}
       </div>
-      {(page > 0 || hasMore) && (
-        <div class="flex justify-between border-t border-silver-100/10 px-5 py-4 text-sm sm:px-8">
-          {page > 0 ? <a class="link" href={`/host?page=${page - 1}`}>← Newer</a> : <span></span>}
-          {hasMore && <a class="link" href={`/host?page=${page + 1}`}>Older →</a>}
-        </div>
-      )}
-    </section>
-  )}
+    </form>
+  </section>
 </PortalLayout>

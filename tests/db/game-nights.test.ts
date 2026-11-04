@@ -16,7 +16,7 @@ function torontoLocal(days: number, time = '19:30'): string {
   return `${date}T${time}`;
 }
 const night = (extra: Record<string, unknown> = {}) =>
-  JSON.stringify({ starts_local: torontoLocal(3), stakes: '$1/$2', seats: 2, notes: 'Doors 7pm', address: '123 Secret St', arrival_note: 'Side door', announce: true, ...extra });
+  JSON.stringify({ starts_local: torontoLocal(3), stakes: '$1/$2', seats: 2, notes: 'Doors 7pm', address: '123 Secret St', arrival_note: 'Side door', announce: true, auto_fill_waitlist: true, ...extra });
 
 async function save(extra: Record<string, unknown> = {}): Promise<string> {
   const [r] = await db.as<{ id: string }>(host(), 'select public.host_save_game_night($1::jsonb) as id', [night(extra)]);
@@ -120,12 +120,13 @@ describe('seat requests and the waitlist', () => {
     await decide(await requestId(id, ids.bob), 'confirmed');
     expect(await errorOf(decide(await requestId(id, ids.carol), 'confirmed'))).toMatch(/game_full/);
     await decide(await requestId(id, ids.carol), 'waitlisted');
+    // The table is full, so Dave's request goes straight onto the waitlist.
     await request(ids.dave, id);
-    await decide(await requestId(id, ids.dave), 'waitlisted');
+    expect(await statusOf(id, ids.dave)).toBe('waitlisted');
     const g = await getNight(as(ids.dave), id);
     expect(g).toMatchObject({ my_status: 'waitlisted', my_waitlist_position: 2, confirmed_count: 2, waitlist_count: 2 });
     const events = (await emails(id)).map((e) => e.payload.event);
-    expect(events).toEqual(['confirmed', 'confirmed', 'waitlisted', 'waitlisted']);
+    expect(events).toEqual(['confirmed', 'confirmed', 'waitlisted']);
   });
 
   it('when a confirmed player cancels, the first on the waitlist is confirmed and emailed', async () => {

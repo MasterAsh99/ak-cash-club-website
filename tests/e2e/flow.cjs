@@ -49,13 +49,13 @@ async function signupAndVerify(page, email, username, password) {
   const token = await latestToken(email, 'signup');
   await page.goto(`${SITE}/auth/confirm?token_hash=${token}&type=email`);
   await page.click('main button[type=submit]');
-  await page.waitForURL(/dashboard\?notice=verified/);
+  await page.waitForURL(/\/(games)?\?notice=verified|\/games$/);
 }
 async function login(page, email, password, next = '') {
   await page.goto(`${SITE}/login${next}`);
   await page.fill('#email', email);
   await page.fill('#password', password);
-  await page.click('button[type=submit]');
+  await page.click('main button[type=submit]');
 }
 
 (async () => {
@@ -66,6 +66,39 @@ async function login(page, email, password, next = '') {
   const errors = [];
   a.on('pageerror', (e) => errors.push(e.message));
 
+
+  await step('home: Sign up and Log in are visible without scrolling, on a phone and on desktop', async () => {
+    for (const [name, ctxOpts] of [['mobile', { ...mobile }], ['desktop', { viewport: { width: 1280, height: 800 } }]]) {
+      const p = await (await browser.newContext({ ...ctxOpts, reducedMotion: 'reduce' })).newPage();
+      await p.goto(`${SITE}/`);
+      const vh = p.viewportSize().height;
+      for (const label of ['Sign up', 'Log in']) {
+        const box = await p.locator(`main a:has-text("${label}")`).first().boundingBox();
+        assert.ok(box && box.y + box.height <= vh, `${label} above the fold on ${name}`);
+      }
+      assert.match(await p.textContent('main'), /Create an account or log in to view upcoming games, request a seat, and track your poker results/);
+      await p.screenshot({ path: `${SHOTS}/00-home-${name}.png` });
+    }
+  });
+
+  await step('no Instagram reservation links anywhere; About the Club holds the details', async () => {
+    for (const path of ['/', '/about', '/privacy', '/login', '/signup']) {
+      const html = await (await fetch(`${SITE}${path}`)).text();
+      assert.ok(!/ig\.me\//.test(html), `${path} has an Instagram DM link`);
+      assert.ok(!/Reserve a seat on Instagram|reserved by Instagram|arranged personally through Instagram|DM to reserve/i.test(html), `${path} still sends people to Instagram to reserve`);
+    }
+    const p = await (await browser.newContext({ ...mobile, reducedMotion: 'reduce' })).newPage();
+    await p.goto(`${SITE}/about`);
+    for (const t of ['Our games', 'Equipment & setup', 'Food & drinks', 'Promotions & jackpots', 'Club information', 'Contact']) {
+      assert.ok(await p.isVisible(`summary:has-text("${t}")`), t);
+    }
+    await p.click('summary:has-text("Food & drinks")');
+    assert.match(await p.textContent('#food'), /BYOB/);
+    await p.screenshot({ path: `${SHOTS}/00-about-mobile.png`, fullPage: true });
+    await p.click('main a:has-text("Upcoming games")');
+    await p.waitForURL(/\/login\?next=%2Fgames/);
+  });
+
   await step('sign-up form rejects the host name and look-alikes', async () => {
     await a.goto(`${SITE}/signup`);
     await a.screenshot({ path: `${SHOTS}/01-signup-mobile.png` });
@@ -74,23 +107,47 @@ async function login(page, email, password, next = '') {
       await a.fill('#username', name);
       await a.fill('#password', 'correct horse battery');
       await a.fill('#confirm', 'correct horse battery');
-      await a.click('button[type=submit]');
+      await a.click('main button[type=submit]');
       await a.waitForLoadState();
       assert.match(await a.textContent('body'), /isn’t allowed|reserved/, name);
     }
   });
 
-  await step('player signs up, verifies email, lands on opt-in empty state', async () => {
+  await step('player signs up, verifies email, lands on the games home; dashboard shows the opt-in', async () => {
     await signupAndVerify(a, 'alice@example.com', 'alice', 'correct horse battery');
+    const home = (await a.innerText('main')).replace(/\s+/g, ' ');
+    assert.match(home, /Hi, alice/);
+    assert.match(home, /Your email is verified/);
+    assert.match(home, /Upcoming games/);
+    assert.ok(await a.isVisible('nav[aria-label="Members (mobile)"]'), 'bottom tab bar on phones');
+    await a.goto(`${SITE}/dashboard`);
     assert.match(await a.textContent('body'), /Keep a private record/);
     await a.screenshot({ path: `${SHOTS}/02-dashboard-optin-mobile.png`, fullPage: true });
+  });
+
+  await step('signing up from "Upcoming games" returns you there after verifying', async () => {
+    const p = await (await browser.newContext({ ...mobile })).newPage();
+    await p.goto(`${SITE}/`);
+    await p.click('main a:has-text("Sign up")');
+    await p.waitForURL(/\/signup\?next=%2Fgames|\/signup\?next=\/games/);
+    await p.fill('#email', 'dana@example.com');
+    await p.fill('#username', 'dana');
+    await p.fill('#password', 'quiet rivers run deep');
+    await p.fill('#confirm', 'quiet rivers run deep');
+    await p.click('main button[type=submit]');
+    await p.waitForURL(/check-email/);
+    const token = await latestToken('dana@example.com', 'signup');
+    await p.goto(`${SITE}/auth/confirm?token_hash=${token}&type=email`);
+    await p.click('main button[type=submit]');
+    await p.waitForURL(`${SITE}/games`);
+    assert.match(await p.textContent('h1'), /Upcoming games/);
   });
 
   await step('verification link is single-use', async () => {
     const token = (await outbox()).find((m) => m.to === 'alice@example.com').token_hash;
     const p = await (await browser.newContext()).newPage();
     await p.goto(`${SITE}/auth/confirm?token_hash=${token}&type=email`);
-    await p.click('button[type=submit]');
+    await p.click('main button[type=submit]');
     assert.match(await p.textContent('body'), /can’t be used/);
   });
 
@@ -168,7 +225,9 @@ async function login(page, email, password, next = '') {
     await h.fill('#code', '123456');
     await h.click('main button[type=submit]');
     await h.waitForURL(`${SITE}/host`);
-    assert.match(await h.textContent('header'), /AK \(host\)/);
+    await h.goto(`${SITE}/account`);
+    assert.match(await h.textContent('main'), /AK \(host\)/);
+    assert.ok(await h.isVisible('nav[aria-label=Members] a[href="/host"]'), 'host link in the menu');
   });
 
   // a second player who never opts in
@@ -228,7 +287,7 @@ async function login(page, email, password, next = '') {
   });
 
   await step('editing requires a reason and lands in the audit log', async () => {
-    await h.goto(`${SITE}/host`);
+    await h.goto(`${SITE}/host/sessions`);
     await h.screenshot({ path: `${SHOTS}/07-host-sessions.png` });
     await h.click('a:has-text("Oct 30, 2026")');
     await h.fill('#row_cashout_2', '1');
@@ -256,7 +315,7 @@ async function login(page, email, password, next = '') {
   });
 
   await step('host records how players paid and ticks payouts as done', async () => {
-    await h.goto(`${SITE}/host`);
+    await h.goto(`${SITE}/host/sessions`);
     await h.click('a:has-text("Oct 30, 2026")');
     const panel = h.locator('#payments');
     assert.match(await panel.innerText(), /3 payouts to make/i);
@@ -274,7 +333,7 @@ async function login(page, email, password, next = '') {
     assert.match(after, /Payments saved/);
     assert.match(after, /1 payout to make · \$1\.00/i);
     await h.locator('#payments').screenshot({ path: `${SHOTS}/16-host-payments.png` });
-    await h.goto(`${SITE}/host`);
+    await h.goto(`${SITE}/host/sessions`);
     assert.match(await h.innerText('main'), /1 to pay/);
     await h.goto(`${SITE}/host/audit`);
     assert.match((await h.innerText('main')).replace(/\s+/g, ' '), /alice paid out: no → yes/);
@@ -332,7 +391,7 @@ async function login(page, email, password, next = '') {
   });
 
   await step('the game page shows its expenses', async () => {
-    await h.goto(`${SITE}/host`);
+    await h.goto(`${SITE}/host/sessions`);
     await h.click('a:has-text("Oct 30, 2026")');
     const body = (await h.innerText('main')).replace(/\s+/g, ' ');
     assert.match(body, /Expenses for this game Total \$64\.50/);
@@ -368,12 +427,12 @@ async function login(page, email, password, next = '') {
     const p = await (await browser.newContext({ ...mobile })).newPage();
     await p.goto(`${SITE}/forgot-password`);
     await p.fill('#email', 'nobody@example.com');
-    await p.click('button[type=submit]');
+    await p.click('main button[type=submit]');
     await p.waitForURL(/check-email\?for=reset/);
     const generic = await p.textContent('main');
     await p.goto(`${SITE}/forgot-password`);
     await p.fill('#email', 'alice@example.com');
-    await p.click('button[type=submit]');
+    await p.click('main button[type=submit]');
     await p.waitForURL(/check-email\?for=reset/);
     assert.equal(await p.textContent('main'), generic, 'same message for unknown and known emails');
     const token = await latestToken('alice@example.com', 'recovery');
@@ -381,18 +440,18 @@ async function login(page, email, password, next = '') {
     await p.screenshot({ path: `${SHOTS}/12-reset-password-mobile.png` });
     await p.fill('#password', 'a brand new passphrase');
     await p.fill('#confirm', 'a brand new passphrase');
-    await p.click('button[type=submit]');
+    await p.click('main button[type=submit]');
     await p.waitForURL(/password-updated/);
     await p.goto(`${SITE}/auth/confirm?token_hash=${token}&type=recovery`);
     await p.fill('#password', 'another passphrase here');
     await p.fill('#confirm', 'another passphrase here');
-    await p.click('button[type=submit]');
+    await p.click('main button[type=submit]');
     assert.match(await p.textContent('main'), /can’t be used/);
     const q = await (await browser.newContext()).newPage();
     await login(q, 'alice@example.com', 'correct horse battery');
     assert.match(await q.textContent('main'), /Incorrect email or password/);
     await login(q, 'alice@example.com', 'a brand new passphrase');
-    await q.waitForURL(/dashboard/);
+    await q.waitForURL(`${SITE}/`);
   });
 
   await step('logging out requires POST and clears the session', async () => {
@@ -469,7 +528,7 @@ async function login(page, email, password, next = '') {
     await p.click('main button[type=submit]');
     await p.waitForURL(/check-email/);
     await p.goto(`${SITE}/auth/confirm?flow=signup&code=${await defaultLink('erin@example.com')}`);
-    await p.waitForURL(/dashboard\?notice=verified/);
+    await p.waitForURL(/\/\?notice=verified/);
   });
 
   await step('default-template verify link in another browser says verified, please log in', async () => {
@@ -507,13 +566,13 @@ async function login(page, email, password, next = '') {
     await p.waitForURL(/password-updated/);
     const q = await (await browser.newContext()).newPage();
     await login(q, 'erin@example.com', 'copper kettle morning');
-    await q.waitForURL(/dashboard/);
+    await q.waitForURL(`${SITE}/`);
   });
 
   await step('the recovery password step cannot be reused without the link', async () => {
     const p = await (await browser.newContext()).newPage();
     await login(p, 'erin@example.com', 'copper kettle morning');
-    await p.waitForURL(/dashboard/);
+    await p.waitForURL(`${SITE}/`);
     const r = await p.request.post(`${SITE}/auth/confirm`, {
       form: { mode: 'recovery_session', flow: 'recovery', password: 'attacker password 1', confirm: 'attacker password 1' },
       headers: { origin: SITE },
@@ -581,19 +640,20 @@ async function login(page, email, password, next = '') {
   const inDays = (n) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() + n * 86_400_000));
 
   await step('host opens a game night; members can request seats but never see who else or the address', async () => {
-    await h.goto(`${SITE}/host/games`);
+    await h.goto(`${SITE}/host/games/new`);
     await h.fill('#date', inDays(3));
     await h.fill('#time', '19:30');
     await h.fill('#stakes', '$1/$2');
     await h.fill('#seats', '2');
     await h.fill('#address', '123 Test Lane');
     await h.fill('#arrival_note', 'Side door');
-    await h.click('#new button[type=submit]');
+    await h.check('input[name=auto_fill_waitlist]');
+    await h.click('main form button[type=submit]');
     await h.waitForURL(/\/host\/games\/[0-9a-f-]{36}\?notice=created/);
     gameId = h.url().match(/games\/([0-9a-f-]{36})/)[1];
 
     await a.goto(`${SITE}/games`);
-    assert.match(await a.textContent('main'), /2 of 2 seats open/);
+    assert.match((await a.innerText('main')).replace(/\s+/g, ' '), /Confirmed 0\/2 Waitlist 0 2 seats open/);
     await a.screenshot({ path: `${SHOTS}/24-games-mobile.png`, fullPage: true });
     await a.click(`form:has(input[value="${gameId}"]) button[type=submit]`);
     await a.waitForURL(/notice=requested/);
@@ -617,14 +677,15 @@ async function login(page, email, password, next = '') {
 
   await step('host confirms with one tap; when a confirmed player cancels, the waitlist moves up', async () => {
     await h.goto(`${SITE}/host/games/${gameId}`);
-    assert.match(await h.textContent('#requests'), /Might be 15 minutes late/);
+    assert.match(await h.textContent('#players'), /Might be 15 minutes late/);
     await h.screenshot({ path: `${SHOTS}/25-host-game-night.png`, fullPage: true });
-    await h.click('#requests li:has-text("alice") button[value=confirmed]');
+    const req = (name, status) => h.locator(`#players li:has-text("${name}") form:has(input[name=status][value=${status}]) button`);
+    await req('alice', 'confirmed').click();
     await h.waitForURL(/notice=confirmed/);
-    await h.click('#requests li:has-text("carol") button[value=confirmed]');
+    await req('carol', 'confirmed').click();
     await h.waitForURL(/notice=confirmed/);
-    assert.equal(await h.isDisabled('#requests li:has-text("bob_99") button[value=confirmed]'), true, 'table full');
-    await h.click('#requests li:has-text("bob_99") button[value=waitlisted]');
+    assert.equal(await req('bob_99', 'confirmed').isDisabled(), true, 'table full');
+    await req('bob_99', 'waitlisted').click();
     await h.waitForURL(/notice=waitlisted/);
 
     await b.goto(`${SITE}/games/${gameId}`);
@@ -715,6 +776,89 @@ async function login(page, email, password, next = '') {
     assert.match(await a.textContent('main'), /\+\$150\.50/);
   });
 
+
+  // ---- host-managed attendance: guests, members, masking, waitlist ----
+  let game2 = '';
+  await step('host adds a guest and a registered player; members see Guest N and masked names only', async () => {
+    await h.goto(`${SITE}/host/games/new`);
+    await h.fill('#date', inDays(5));
+    await h.fill('#time', '19:00');
+    await h.fill('#stakes', '$0.50/$1');
+    await h.fill('#seats', '3');
+    await h.fill('#address', '9 Hidden Way');
+    await h.click('main form button[type=submit]');
+    await h.waitForURL(/\/host\/games\/[0-9a-f-]{36}\?notice=created/);
+    game2 = h.url().match(/games\/([0-9a-f-]{36})/)[1];
+
+    await h.fill('input[name=guest_name]', 'John Smith');
+    await h.click('form:has(input[value=add_guest]) button[type=submit]');
+    await h.waitForURL(/notice=added/);
+    await h.click('summary:has-text("Add player")');
+    await h.fill('input[name=guest_name]', 'john smith');
+    await h.click('form:has(input[value=add_guest]) button[type=submit]');
+    assert.match(await h.textContent('#add'), /already on this game/);
+    assert.equal(await h.locator('#member-list option[value="alice"]').count(), 1, 'autocomplete lists members');
+    await h.fill('input[name=username]', 'alice');
+    await h.click('form:has(input[value=add_member]) button[type=submit]');
+    await h.waitForURL(/notice=added/);
+    await h.click('summary:has-text("Add player")');
+    await h.fill('input[name=username]', 'nobody_here');
+    await h.click('form:has(input[value=add_member]) button[type=submit]');
+    assert.match(await h.textContent('#add'), /No member called/);
+    await h.fill('input[name=guest_name]', 'Michael Brown');
+    await h.click('form:has(input[value=add_guest]) button[type=submit]');
+    await h.waitForURL(/notice=added/);
+    const hostView = await h.innerText('#players');
+    assert.match(hostView, /John Smith/);
+    assert.match(hostView, /alice/);
+
+    // A member's view: masked, and no real guest names anywhere in the page.
+    const c = await (await browser.newContext({ ...mobile, reducedMotion: 'reduce' })).newPage();
+    await login(c, 'carol@example.com', 'third player passphrase', `?next=/games/${game2}`);
+    await c.waitForURL(new RegExp(`/games/${game2}`));
+    const html = await c.content();
+    assert.ok(!/John Smith|Michael Brown|9 Hidden Way/.test(html), 'no guest names or address in the member page');
+    const who = (await c.innerText('#who-title + ul')).replace(/\s+/g, ' ');
+    assert.equal(who, 'Guest 1 A***** Guest 2');
+    assert.match(await c.textContent('main'), /This game is full\. You can join the waitlist/);
+    assert.equal(await c.textContent('form:has(input[value=request]) button[type=submit]'), 'Join waitlist');
+    await c.click('form:has(input[value=request]) button[type=submit]');
+    await c.waitForURL(/notice=waitlisted/);
+    await c.screenshot({ path: `${SHOTS}/33-member-game-masked-mobile.png`, fullPage: true });
+
+    await a.goto(`${SITE}/games/${game2}`);
+    assert.match((await a.innerText('#who-title + ul')).replace(/\s+/g, ' '), /alice \(you\)/);
+    await a.goto(`${SITE}/`);
+    assert.match(await a.innerText('main'), /My games/);
+  });
+
+  await step('host reorders the waitlist and gives a freed seat (no automatic confirmation)', async () => {
+    await b.goto(`${SITE}/games/${game2}`);
+    await b.click('form:has(input[value=request]) button[type=submit]');
+    await b.waitForURL(/notice=waitlisted/);
+    assert.match(await b.textContent('main'), /number 2 on the waitlist/);
+    await h.goto(`${SITE}/host/games/${game2}`);
+    await h.click('#waitlist li:has-text("bob_99") button[aria-label^="Move bob_99 up"]');
+    await h.waitForURL(/notice=moved/);
+    await b.goto(`${SITE}/games/${game2}`);
+    assert.match(await b.textContent('main'), /number 1 on the waitlist/);
+    // Free a seat: with auto-fill off nobody is confirmed until the host decides.
+    await h.click('#players li:has-text("Michael Brown") button:has-text("Remove")');
+    await h.waitForURL(/notice=removed/);
+    await b.goto(`${SITE}/games/${game2}`);
+    assert.match(await b.textContent('main'), /number 1 on the waitlist/);
+    await h.click('#waitlist li:has-text("bob_99") button:has-text("Give seat")');
+    await h.waitForURL(/notice=confirmed/);
+    await b.goto(`${SITE}/games/${game2}`);
+    assert.match(await b.textContent('main'), /Your seat is confirmed/);
+    await h.screenshot({ path: `${SHOTS}/34-host-game-desktop.png`, fullPage: true });
+    const phone = await (await browser.newContext({ ...mobile, storageState: await hostCtx.storageState(), reducedMotion: 'reduce' })).newPage();
+    await phone.goto(`${SITE}/host/games/${game2}`);
+    await phone.screenshot({ path: `${SHOTS}/35-host-game-mobile.png`, fullPage: true });
+    await phone.goto(`${SITE}/host`);
+    await phone.screenshot({ path: `${SHOTS}/36-host-home-mobile.png`, fullPage: true });
+  });
+
   await step('all results: AK games and outside games together, with filters', async () => {
     await a.goto(`${SITE}/poker-log/results`);
     const body = (await a.innerText('main')).replace(/\s+/g, ' ');
@@ -781,7 +925,7 @@ async function login(page, email, password, next = '') {
 
   await step('installable app: manifest, icons, offline page; member pages never cached', async () => {
     const m = await (await fetch(`${SITE}/manifest.webmanifest`)).json();
-    assert.equal(m.start_url, '/dashboard');
+    assert.equal(m.start_url, '/');
     assert.equal(m.display, 'standalone');
     for (const icon of m.icons) assert.equal((await fetch(`${SITE}${icon.src}`)).status, 200, icon.src);
     assert.equal((await fetch(`${SITE}/offline/`)).status, 200);
