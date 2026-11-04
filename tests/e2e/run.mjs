@@ -35,10 +35,15 @@ async function waitFor(url, ms = 60_000) {
 execSync('npm run build', { stdio: 'inherit', env });
 start('node', ['--experimental-strip-types', 'tests/e2e/mock-supabase.mts']);
 start('npx', [
-  'wrangler', 'dev', '--config', 'dist/server/wrangler.json', '--port', '4321', '--ip', '127.0.0.1',
+  'wrangler', 'dev', '--test-scheduled', '--config', 'dist/server/wrangler.json', '--port', '4321', '--ip', '127.0.0.1',
   '--var', 'SUPABASE_URL:http://127.0.0.1:54321',
   '--var', 'SUPABASE_PUBLISHABLE_KEY:e2e-test-key',
   '--var', 'PUBLIC_SITE_URL:http://127.0.0.1:4321',
+  // Notification emails go to the mock's Resend stand-in.
+  '--var', 'NOTIFY_SECRET:e2e-notify-secret-0123456789abcdef0123456789abcdef',
+  '--var', 'RESEND_API_KEY:re_e2e_key',
+  '--var', 'RESEND_API_URL:http://127.0.0.1:54321/__test/resend/emails',
+  '--var', 'EMAIL_FROM:AK Cash Club <no-reply@example.test>',
 ]);
 await waitFor('http://127.0.0.1:54321/__test/outbox');
 await waitFor('http://127.0.0.1:4321/');

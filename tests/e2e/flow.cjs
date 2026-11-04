@@ -110,6 +110,21 @@ async function login(page, email, password, next = '') {
     await a.screenshot({ path: `${SHOTS}/03-account-mobile.png`, fullPage: true });
   });
 
+
+  await step('dashboard offers result emails; account shows email preferences', async () => {
+    await a.goto(`${SITE}/dashboard`);
+    assert.match(await a.textContent('main'), /Get an email when your result is posted\?/);
+    await a.screenshot({ path: `${SHOTS}/18-dashboard-email-prompt-mobile.png` });
+    await a.click('button[name=results_email][value=on]');
+    await a.waitForURL(/notice=results-email-on/);
+    assert.ok(!/Get an email when your result is posted/.test(await a.textContent('main')), 'prompt hidden once on');
+    await a.goto(`${SITE}/account#notifications`);
+    assert.equal(await a.isChecked('#notifications input[name=results_ready]'), true);
+    assert.equal(await a.isChecked('#notifications input[name=game_announcements]'), false);
+    assert.equal(await a.isChecked('#notifications input[name=seat_updates]'), true);
+    await a.locator('#notifications').screenshot({ path: `${SHOTS}/19-account-notifications-mobile.png` });
+  });
+
   await step('player cannot rename to "AK (host)"', async () => {
     await a.goto(`${SITE}/account`);
     await a.fill('#username', 'AK (host)');
@@ -504,6 +519,89 @@ async function login(page, email, password, next = '') {
       headers: { origin: SITE },
     });
     assert.match(await r.text(), /can’t be used/);
+  });
+
+
+  await step('"result is ready" email: sent by the scheduled job, no amounts, unsubscribe works', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await h.goto(`${SITE}/host`);
+    if (!h.url().includes('/host')) throw new Error('host signed out');
+    await recordSession(today, [
+      { player: 'alice', initial: '100', cashout: '160' },
+      { player: 'guest', guest: 'Guest 1', initial: '100', cashout: '40' },
+    ], { title: 'Email test game' });
+    await h.click('button[value=save]');
+    await h.waitForURL(/notice=created/);
+    const queued = await (await fetch(`${MOCK}/__test/notify-due`, { method: 'POST' })).json();
+    assert.ok(queued.some((q) => q.kind === 'results_ready' && q.status === 'pending'), 'email queued');
+    const before = (await (await fetch(`${MOCK}/__test/resend/sent`)).json()).length;
+    const cron = await fetch(`${SITE}/cdn-cgi/handler/scheduled?cron=${encodeURIComponent('*/10 * * * *')}`);
+    assert.equal(cron.status, 200);
+    let sent = [];
+    for (let i = 0; i < 40 && sent.length <= before; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      sent = await (await fetch(`${MOCK}/__test/resend/sent`)).json();
+    }
+    const mail = sent.find((m) => m.subject && m.subject.includes(new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${today}T00:00:00Z`))));
+    assert.ok(mail, 'email sent for today’s game');
+    assert.deepEqual(mail.to, ['alice@example.com']);
+    assert.equal(mail.from, 'AK Cash Club <no-reply@example.test>');
+    assert.ok(!/\$\d|160|Guest 1|bob/.test(mail.html + mail.text), 'no amounts or other players');
+    assert.ok(sent.every((m) => m.to[0] === 'alice@example.com'), 'only the opted-in player is emailed');
+    // Running the job again doesn't resend.
+    await fetch(`${SITE}/cdn-cgi/handler/scheduled`);
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal((await (await fetch(`${MOCK}/__test/resend/sent`)).json()).length, sent.length);
+
+    const preview = await (await browser.newContext({ ...mobile, reducedMotion: 'reduce' })).newPage();
+    await preview.setContent(mail.html);
+    await preview.screenshot({ path: `${SHOTS}/20-results-email-mobile.png`, fullPage: true });
+
+    const unsub = mail.headers['List-Unsubscribe'].slice(1, -1);
+    assert.ok(unsub.startsWith(`${SITE}/unsubscribe?t=`));
+    const u = await (await browser.newContext({ ...mobile, reducedMotion: 'reduce' })).newPage();
+    await u.goto(unsub);
+    assert.match(await u.textContent('main'), /Stop receiving “Your result is ready” emails\?/);
+    await u.screenshot({ path: `${SHOTS}/21-unsubscribe-mobile.png` });
+    await u.click('main button[type=submit]:not([name])');
+    assert.match(await u.textContent('main'), /You won’t receive “Your result is ready” emails any more/);
+    await a.goto(`${SITE}/account#notifications`);
+    assert.equal(await a.isChecked('#notifications input[name=results_ready]'), false);
+    assert.equal(await a.isChecked('#notifications input[name=seat_updates]'), true);
+    const bad = await (await browser.newContext()).newPage();
+    await bad.goto(`${SITE}/unsubscribe?t=${'0'.repeat(64)}&k=results_ready`);
+    await bad.click('main button[type=submit]:not([name])');
+    assert.match(await bad.textContent('main'), /isn’t valid/);
+  });
+
+  await step('installable app: manifest, icons, offline page; member pages never cached', async () => {
+    const m = await (await fetch(`${SITE}/manifest.webmanifest`)).json();
+    assert.equal(m.start_url, '/dashboard');
+    assert.equal(m.display, 'standalone');
+    for (const icon of m.icons) assert.equal((await fetch(`${SITE}${icon.src}`)).status, 200, icon.src);
+    assert.equal((await fetch(`${SITE}/offline/`)).status, 200);
+    await a.goto(`${SITE}/account#install`);
+    assert.match(await a.textContent('#install'), /Add to Home Screen/);
+    await a.locator('#install').screenshot({ path: `${SHOTS}/22-account-install-mobile.png` });
+    const swOk = await a.evaluate(async () => {
+      const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 8000))]);
+      return Boolean(reg && reg.active);
+    });
+    assert.ok(swOk, 'service worker active');
+    await a.goto(`${SITE}/dashboard`);
+    await a.goto(`${SITE}/poker-log`);
+    const cached = await a.evaluate(async () => {
+      const out = [];
+      for (const k of await caches.keys()) for (const r of await (await caches.open(k)).keys()) out.push(new URL(r.url).pathname);
+      return out;
+    });
+    assert.ok(cached.includes('/offline/'), 'offline page cached');
+    assert.ok(!cached.some((p) => /^\/(dashboard|account|poker-log|host)/.test(p)), `member pages cached: ${cached}`);
+    await alice.setOffline(true);
+    await a.goto(`${SITE}/dashboard`).catch(() => {});
+    assert.match(await a.textContent('main'), /You’re offline/);
+    await a.screenshot({ path: `${SHOTS}/23-offline-mobile.png` });
+    await alice.setOffline(false);
   });
 
   await step('public home page still renders with a Log in link', async () => {

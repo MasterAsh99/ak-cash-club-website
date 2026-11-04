@@ -13,3 +13,10 @@ SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxxxxxx
 
 # Where links in emails point. In production this is set in wrangler.jsonc.
 PUBLIC_SITE_URL=http://127.0.0.1:4321
+
+# Optional: notification emails (see docs/SETUP.md, section 4). Leave blank to
+# disable sending locally. NOTIFY_SECRET comes from
+#   select private.rotate_outbox_secret();
+NOTIFY_SECRET=
+RESEND_API_KEY=
+EMAIL_FROM=

@@ -100,7 +100,8 @@ analytics, for example), you'll need to allow that domain in the CSP.
 ```
 ├── public/                  Static files served as-is
 │   ├── _headers             Cloudflare security + cache headers
-│   ├── brand/               Emblem in web sizes (96/192/320/640 px, WebP)
+│   ├── brand/               Emblem in web sizes (96/192/320/640 px, WebP) + app icons
+│   ├── manifest.webmanifest, sw.js   Installable app (pages are never cached)
 │   ├── favicon.ico, favicon-32.png, apple-touch-icon.png
 │   ├── og-image.jpg         Preview image used when the link is shared (1200×630)
 │   └── robots.txt
@@ -109,6 +110,7 @@ analytics, for example), you'll need to allow that domain in the CSP.
 │   ├── config/site.ts       ← Club name, Instagram handle, nav, game details, equipment links
 │   ├── styles/global.css    ← Brand colours, fonts, buttons, animations
 │   ├── middleware.ts        ← Member pages: session check + security headers
+│   ├── worker/index.ts      ← Worker entry: the site + a 10-minute job that sends queued emails
 │   ├── lib/                 ← Member-area logic (money in integer cents, stats, chart,
 │   │                          validation, Supabase client, page guards, rate limits)
 │   ├── layouts/
@@ -136,7 +138,9 @@ analytics, for example), you'll need to allow that domain in the CSP.
 │       ├── auth/confirm     Landing page for every emailed link
 │       ├── dashboard        Player dashboard
 │       ├── poker-log/       My Poker Log: a member’s private record of games outside the club
-│       ├── account          Username, tracking consent, password, email, deletion
+│       ├── account          Username, tracking consent, email preferences, app install, password, email, deletion
+│       ├── unsubscribe      One-click-to-confirm unsubscribe link from notification emails
+│       ├── offline          Shown by the installed app without a connection
 │       └── host/            Host-only: sessions (with payments), players, expenses, audit log, two-factor
 ├── supabase/
 │   ├── migrations/          Database tables, security rules and functions

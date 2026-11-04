@@ -1,0 +1,19 @@
+---
+/** Shown by the installed app when there's no internet connection. */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { site } from '../config/site';
+---
+
+<BaseLayout title={`Offline · ${site.name}`} noindex>
+  <main id="main" class="grid min-h-dvh place-items-center bg-[radial-gradient(80%_60%_at_50%_0%,#16243f,#05070c_70%)] px-6 text-center">
+    <div>
+      <img src="/brand/app-icon-192.png" width="96" height="96" alt="" class="mx-auto rounded-full" />
+      <p class="eyebrow mt-10">No connection</p>
+      <h1 class="mt-4 text-5xl">You’re offline.</h1>
+      <p class="mx-auto mt-4 max-w-sm text-silver-300">
+        Check your internet connection and try again. For your privacy, member pages are never stored on this device.
+      </p>
+      <a href="" class="btn-ghost mt-10">Try again</a>
+    </div>
+  </main>
+</BaseLayout>
