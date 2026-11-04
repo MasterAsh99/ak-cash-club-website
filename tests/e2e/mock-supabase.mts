@@ -26,6 +26,7 @@ const users = new Map<string, User>(); // by id
 const tokens = new Map<string, { userId: string; type: string; newEmail?: string }>(); // token_hash -> purpose
 const refresh = new Map<string, { userId: string; aal: string }>();
 const factors = new Map<string, Factor>();
+const codes = new Map<string, string>(); // PKCE auth code -> userId (default-template links)
 const outbox: Array<{ to: string; type: string; token_hash: string; redirect_to: string | null }> = [];
 
 const b64url = (b: Buffer | string) => Buffer.from(b).toString('base64url');
@@ -103,6 +104,13 @@ async function handleAuth(req: IncomingMessage, res: ServerResponse, url: URL, p
       const u = byEmail(String(b.email));
       if (!u || u.password !== b.password) return authErr(res, 400, 'invalid_credentials', 'Invalid login credentials');
       if (!u.confirmed) return authErr(res, 400, 'email_not_confirmed', 'Email not confirmed');
+      return send(res, 200, session(u));
+    }
+    if (grant === 'pkce') {
+      const userId = codes.get(b.auth_code);
+      codes.delete(b.auth_code);
+      const u = userId && users.get(userId);
+      if (!u || !b.code_verifier) return authErr(res, 400, 'bad_code_verifier', 'code challenge does not match previously saved code verifier');
       return send(res, 200, session(u));
     }
     if (grant === 'refresh_token') {
@@ -213,6 +221,17 @@ createServer(async (req, res) => {
     if (url.pathname.startsWith('/auth/v1')) return await handleAuth(req, res, url, url.pathname.slice(8));
     if (url.pathname.startsWith('/rest/v1/rpc/')) return await handleRpc(req, res, url.pathname.slice(13));
     if (url.pathname === '/__test/outbox') return send(res, 200, outbox);
+    // Simulates Supabase's default template: verify on Supabase's side, then
+    // redirect to the site with ?code=. Returns the code.
+    if (url.pathname === '/__test/default-link' && req.method === 'POST') {
+      const { email } = await body(req);
+      const u = byEmail(email);
+      if (!u) return send(res, 404, { error: 'no such user' });
+      u.confirmed = true;
+      const code = randomUUID();
+      codes.set(code, u.id);
+      return send(res, 200, { code });
+    }
     if (url.pathname === '/__test/make-host' && req.method === 'POST') {
       const { email } = await body(req);
       const u = byEmail(email);

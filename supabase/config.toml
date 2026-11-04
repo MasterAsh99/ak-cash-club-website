@@ -21,8 +21,8 @@ major_version = 17
 enabled = true
 site_url = "http://127.0.0.1:4321"
 additional_redirect_urls = [
-  "http://127.0.0.1:4321/auth/confirm",
-  "https://ak-cash-club-website.aaronkara99.workers.dev/auth/confirm",
+  "http://127.0.0.1:4321/**",
+  "https://ak-cash-club-website.aaronkara99.workers.dev/**",
 ]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
