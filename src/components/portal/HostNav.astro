@@ -1,12 +1,13 @@
 ---
 interface Props {
-  current: 'sessions' | 'new' | 'players' | 'audit';
+  current: 'sessions' | 'new' | 'players' | 'expenses' | 'audit';
 }
 const { current } = Astro.props;
 const items = [
   { key: 'sessions', href: '/host', label: 'Sessions' },
   { key: 'new', href: '/host/sessions/new', label: 'New session' },
   { key: 'players', href: '/host/players', label: 'Players' },
+  { key: 'expenses', href: '/host/expenses', label: 'Expenses' },
   { key: 'audit', href: '/host/audit', label: 'Audit log' },
 ];
 ---

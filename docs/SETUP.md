@@ -46,10 +46,14 @@ The club’s address is **`https://akcashclub.com`** (with `www.` redirecting to
 1. Sign up at supabase.com and create a **New project**.
    - **Region:** choose **Canada (Central)** if offered, so member data stays in Canada.
    - **Database password:** generate a strong one and store it in a password manager.
-2. **Create the database tables and security rules.** Open **SQL Editor → New query**,
-   paste the entire contents of
-   `supabase/migrations/20261103000000_player_portal.sql`, and press **Run**.
-   It should finish with “Success. No rows returned”.
+2. **Create the database tables and security rules.** For **each file** in
+   `supabase/migrations/`, in name order, open **SQL Editor → New query**, paste the
+   file’s entire contents, and press **Run**. Each should finish with
+   “Success. No rows returned”:
+   1. `20261103000000_player_portal.sql` (accounts, sessions, results, audit log)
+   2. `20261104000000_host_expenses.sql` (host expense tracker)
+
+   When a new file is added in future, run just that file.
    *(Alternative for developers: `npx supabase link` then `npx supabase db push`.)*
 3. **Check the API only exposes the `public` schema:** **Project Settings → Data API →
    Exposed schemas** should list `public` (and possibly `graphql_public`), and **not**

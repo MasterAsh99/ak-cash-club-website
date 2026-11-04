@@ -10,6 +10,8 @@ import { friendlyDbError } from '../../../lib/errors';
 import { handleSessionForm, loadPlayerOptions, type PlayerOption } from '../../../lib/host-session-page';
 import { valuesFromStored } from '../../../lib/session-form';
 import { formatDate } from '../../../lib/stats';
+import { categoryLabel, type ExpenseRow } from '../../../lib/expenses';
+import { formatCents, toCents } from '../../../lib/money';
 
 const access = await requireHost(Astro);
 if (access instanceof Response) return access;
@@ -36,6 +38,12 @@ const initial = stored ? valuesFromStored(stored) : null;
 const state = initial ? await handleSessionForm(Astro, initial, players, true) : null;
 if (state instanceof Response) return state;
 
+const { data: expenseData } = loadErr
+  ? { data: [] }
+  : await Astro.locals.supabase!.rpc('host_list_expenses', { p_from: null, p_to: null, p_session_id: id, p_limit: 200 });
+const gameExpenses = (expenseData ?? []) as ExpenseRow[];
+const gameExpenseTotal = gameExpenses.reduce((s, e) => s + toCents(e.amount_cents), 0n);
+
 const notices: Record<string, string> = {
   created: 'Session saved. Tracked players can now see their results on their dashboards.',
   updated: 'Changes saved and recorded in the audit log.',
@@ -57,6 +65,29 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
       <SessionForm state={state} players={players} isEdit={true} />
     </div>
   )}
+
+  <section class="panel mt-10 overflow-hidden" aria-labelledby="game-expenses-title">
+    <div class="flex flex-wrap items-baseline justify-between gap-3 px-5 pt-6 sm:px-8">
+      <h2 id="game-expenses-title" class="text-2xl">Expenses for this game</h2>
+      <p class="text-sm text-silver-300">Total <span class="tabular-nums text-silver-50">{formatCents(gameExpenseTotal)}</span></p>
+    </div>
+    {gameExpenses.length === 0 ? (
+      <p class="px-5 py-5 text-sm text-silver-400 sm:px-8">No expenses linked to this game yet.</p>
+    ) : (
+      <ul class="mt-4 divide-y divide-silver-100/10 border-t border-silver-100/10 text-sm">
+        {gameExpenses.map((e) => (
+          <li class="flex items-baseline justify-between gap-4 px-5 py-3 sm:px-8">
+            <a class="link" href={`/host/expenses/${e.expense_id}`}>{e.description}</a>
+            <span class="text-xs text-silver-500">{categoryLabel(e.category)}</span>
+            <span class="ml-auto tabular-nums text-silver-100">{formatCents(toCents(e.amount_cents))}</span>
+          </li>
+        ))}
+      </ul>
+    )}
+    <div class="px-5 py-5 sm:px-8">
+      <a class="btn-ghost min-h-10 px-5 text-sm" href={`/host/expenses?session=${id}#add`}>+ Add an expense for this game</a>
+    </div>
+  </section>
 
   <div class="mt-10 flex flex-wrap gap-3 border-t border-silver-100/10 pt-8">
     <a class="btn-ghost" href={`/host/audit?session=${id}`}>View change history</a>

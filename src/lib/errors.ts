@@ -22,6 +22,7 @@ const DB_MESSAGES: Record<string, string> = {
   adjustment_not_found: 'An adjustment changed while you were editing. Please reload and try again.',
   too_many_players: 'A session can have at most 40 players.',
   invalid_payload: 'Something was wrong with the form. Please check it and try again.',
+  expense_not_found: 'That expense no longer exists.',
 };
 
 export function friendlyDbError(err: { message?: string; code?: string } | null | undefined): string {

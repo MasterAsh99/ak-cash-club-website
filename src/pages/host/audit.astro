@@ -7,6 +7,7 @@ import Alert from '../../components/portal/Alert.astro';
 import { requireHost } from '../../lib/access';
 import { friendlyDbError } from '../../lib/errors';
 import { formatCents, toCents } from '../../lib/money';
+import { categoryLabel } from '../../lib/expenses';
 
 const access = await requireHost(Astro);
 if (access instanceof Response) return access;
@@ -29,14 +30,16 @@ const entries = (data ?? []) as Entry[];
 
 const TABLE_LABEL: Record<string, string> = {
   game_sessions: 'Session', session_results: 'Result', session_adjustments: 'Adjustment', profiles: 'Consent',
+  host_expenses: 'Expense',
 };
 const MONEY = new Set(['initial_buy_in_cents', 'cash_out_cents', 'amount_cents', 'net_cents', 'total_buy_in_cents']);
 const FIELD_LABEL: Record<string, string> = {
   initial_buy_in_cents: 'buy-in', cash_out_cents: 'cash-out', amount_cents: 'amount', add_on_cents: 'rebuys',
   player_id: 'player', guest_label: 'guest', played_on: 'date', stakes: 'stakes', title: 'title', game_type: 'game',
   reason: 'reason', tracking_enabled: 'tracking', host_notes: 'notes',
+  spent_on: 'date', category: 'category', description: 'description', session_id: 'game',
 };
-const SKIP = new Set(['id', 'session_id', 'created_at', 'updated_at', 'created_by', 'net_cents', 'total_buy_in_cents', 'tracking_consented_at']);
+const SKIP = new Set(['id', 'created_at', 'updated_at', 'created_by', 'net_cents', 'total_buy_in_cents', 'tracking_consented_at']);
 
 function show(key: string, v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
@@ -44,6 +47,8 @@ function show(key: string, v: unknown): string {
   if (key === 'add_on_cents' && Array.isArray(v)) return v.length ? v.map((c) => formatCents(toCents(c))).join(' + ') : 'none';
   if (key === 'player_id') return names.get(String(v)) ?? 'removed account';
   if (key === 'host_notes') return '(private note)';
+  if (key === 'session_id') return 'linked to a game';
+  if (key === 'category') return categoryLabel(String(v));
   if (typeof v === 'boolean') return v ? 'on' : 'off';
   return String(v);
 }
@@ -71,6 +76,7 @@ function describe(e: Entry): string[] {
     return [`${subject}: buy-in ${show('initial_buy_in_cents', d.initial_buy_in_cents)}, rebuys ${show('add_on_cents', d.add_on_cents)}, cash-out ${show('cash_out_cents', d.cash_out_cents)}`];
   }
   if (e.table_name === 'session_adjustments') return [`${show('amount_cents', d.amount_cents)}: ${show('reason', d.reason)}`];
+  if (e.table_name === 'host_expenses') return [`${show('amount_cents', d.amount_cents)}: ${show('description', d.description)} (${categoryLabel(String(d.category))}, ${show('spent_on', d.spent_on)})`];
   if (e.table_name === 'game_sessions') return [`${show('played_on', d.played_on)} · ${show('stakes', d.stakes)}${d.title ? ' · ' + d.title : ''}`];
   return [];
 }

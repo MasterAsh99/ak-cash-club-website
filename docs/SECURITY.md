@@ -31,6 +31,7 @@
 | Consent | Results can be linked only to players with tracking on. Turning it off hides results immediately. Consent changes are audited. |
 | Atomic saves | `host_save_session` runs in one transaction; any invalid row rolls back the whole save. Unique constraints stop duplicate players and guest labels. |
 | Exact money | `bigint` cents in the database (net is a generated column); `BigInt` in the app; no floating point. |
+| Host expenses | `host_expenses` is readable only with `private.is_host_mfa()`; writes go through `host_save_expense` / `host_delete_expense` (host + MFA, reason required to edit or delete). Players get an empty result or “permission denied”. |
 | Audit trail | Triggers write every insert/update/delete of sessions, results, adjustments and consent to `audit_log` with actor id, time, reason, and before/after values. No role can modify or delete audit rows. |
 | XSS | Astro escapes all output; strict Content-Security-Policy; no user HTML is rendered. |
 | SQL injection | No SQL is built in the app; all access is parameterised PostgREST/RPC calls. |

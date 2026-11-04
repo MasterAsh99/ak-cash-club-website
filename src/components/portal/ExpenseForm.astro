@@ -1,0 +1,67 @@
+---
+import Alert from './Alert.astro';
+import { CATEGORIES, type ExpenseValues } from '../../lib/expenses';
+import { formatDate } from '../../lib/stats';
+
+interface Props {
+  values: ExpenseValues;
+  errors: Record<string, string>;
+  sessions: Array<{ session_id: string; played_on: string; title: string | null; stakes: string }>;
+  isEdit: boolean;
+  formError?: string;
+}
+const { values, errors, sessions, isEdit, formError } = Astro.props;
+const err = (k: string) => errors[k];
+---
+
+<form method="post" class="space-y-5" novalidate>
+  {(formError || errors.form) && <Alert tone="error">{formError || errors.form}</Alert>}
+  <input type="hidden" name="expense_id" value={values.id} />
+  <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-[0.9fr_1fr_0.8fr]">
+    <div>
+      <label class="label" for="spent_on">Date</label>
+      <input class="input" type="date" id="spent_on" name="spent_on" required value={values.spent_on} aria-invalid={err('spent_on') ? 'true' : undefined} />
+      {err('spent_on') && <p class="field-error">{err('spent_on')}</p>}
+    </div>
+    <div>
+      <label class="label" for="category">Category</label>
+      <select class="input" id="category" name="category" required aria-invalid={err('category') ? 'true' : undefined}>
+        <option value="">Choose…</option>
+        {CATEGORIES.map((c) => <option value={c.value} selected={values.category === c.value}>{c.label}</option>)}
+      </select>
+      {err('category') && <p class="field-error">{err('category')}</p>}
+    </div>
+    <div>
+      <label class="label" for="amount">Amount (CAD)</label>
+      <input class="input tabular-nums" id="amount" name="amount" inputmode="decimal" placeholder="64.50" required value={values.amount} aria-invalid={err('amount') ? 'true' : undefined} />
+      {err('amount') && <p class="field-error">{err('amount')}</p>}
+    </div>
+    <div class="sm:col-span-2 lg:col-span-2">
+      <label class="label" for="description">What was it?</label>
+      <input class="input" id="description" name="description" maxlength="200" required placeholder="Pizza and pop for Friday’s game" value={values.description} aria-invalid={err('description') ? 'true' : undefined} />
+      {err('description') && <p class="field-error">{err('description')}</p>}
+    </div>
+    <div>
+      <label class="label" for="session_id">Game <span class="normal-case tracking-normal text-silver-500">(optional)</span></label>
+      <select class="input" id="session_id" name="session_id" aria-invalid={err('session_id') ? 'true' : undefined}>
+        <option value="">Not linked to a game</option>
+        {sessions.map((s) => (
+          <option value={s.session_id} selected={values.session_id === s.session_id}>
+            {formatDate(s.played_on)}{s.title ? ` · ${s.title}` : ''} · {s.stakes}
+          </option>
+        ))}
+      </select>
+      {err('session_id') && <p class="field-error">{err('session_id')}</p>}
+    </div>
+    {isEdit && (
+      <div class="sm:col-span-2 lg:col-span-3">
+        <label class="label" for="reason">Reason for this change</label>
+        <input class="input" id="reason" name="reason" maxlength="200" required placeholder="e.g. Corrected the receipt total" value={values.reason} aria-invalid={err('reason') ? 'true' : undefined} />
+        {err('reason') ? <p class="field-error">{err('reason')}</p> : <p class="hint">Saved in the audit log.</p>}
+      </div>
+    )}
+  </div>
+  <div class="flex justify-end">
+    <button type="submit" name="intent" value="save" class="btn-primary">{isEdit ? 'Save changes' : 'Add expense'}</button>
+  </div>
+</form>
