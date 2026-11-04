@@ -5,8 +5,8 @@ import cloudflare from '@astrojs/cloudflare';
 
 // https://astro.build/config
 export default defineConfig({
-  // Live address on Cloudflare Workers. Update this if you add a custom domain.
-  site: 'https://ak-cash-club-website.aaronkara99.workers.dev',
+  // The site's main address (canonical links, share previews).
+  site: 'https://akcashclub.com',
 
   // Marketing pages are still pre-built at build time. Member pages opt in to
   // on-demand rendering with `export const prerender = false`.

@@ -5,7 +5,8 @@ The public website for **AK Cash Club**, a private poker home game in London, On
 It's a mobile-first site built with [Astro](https://astro.build) and
 [Tailwind CSS](https://tailwindcss.com), hosted on Cloudflare Workers.
 
-**Live site:** https://ak-cash-club-website.aaronkara99.workers.dev
+**Live site:** https://akcashclub.com  
+(also reachable at https://ak-cash-club-website.aaronkara99.workers.dev)
 
 It has two parts:
 

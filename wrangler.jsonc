@@ -12,7 +12,7 @@
   // Non-secret settings. SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are set as
   // encrypted variables in the Cloudflare dashboard (see SETUP.md), not here.
   "vars": {
-    "PUBLIC_SITE_URL": "https://ak-cash-club-website.aaronkara99.workers.dev"
+    "PUBLIC_SITE_URL": "https://akcashclub.com"
   },
 
   // Coarse abuse protection for login, sign-up and password-reset forms.
