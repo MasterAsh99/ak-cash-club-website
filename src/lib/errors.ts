@@ -23,6 +23,9 @@ const DB_MESSAGES: Record<string, string> = {
   too_many_players: 'A session can have at most 40 players.',
   invalid_payload: 'Something was wrong with the form. Please check it and try again.',
   expense_not_found: 'That expense no longer exists.',
+  ak_games_tracked_separately: 'AK Cash Club games are recorded by the host and appear on My Dashboard. Please don’t add them to your log.',
+  log_entry_not_found: 'That entry no longer exists.',
+  log_full: 'Your log is full (5,000 entries).',
 };
 
 export function friendlyDbError(err: { message?: string; code?: string } | null | undefined): string {

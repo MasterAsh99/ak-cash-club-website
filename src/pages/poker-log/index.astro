@@ -1,0 +1,129 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import Alert from '../../components/portal/Alert.astro';
+import StatTile from '../../components/portal/StatTile.astro';
+import PerformanceChart from '../../components/portal/PerformanceChart.astro';
+import LogForm from '../../components/portal/LogForm.astro';
+import { readForm, requireMember } from '../../lib/access';
+import { buildChart } from '../../lib/chart';
+import { friendlyDbError } from '../../lib/errors';
+import { formatCents, toCents } from '../../lib/money';
+import { AK_WARNING, formatHours, formatLabel, logStats, parseLogEntry, readLogValues, type LogRow, type LogValues } from '../../lib/poker-log';
+import { formatDate } from '../../lib/stats';
+
+const access = await requireMember(Astro);
+if (access instanceof Response) return access;
+const supabase = Astro.locals.supabase!;
+
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(new Date());
+let values: LogValues = { id: '', played_on: today, venue: '', game: '', format: 'cash', stakes: '', buy_in: '', cash_out: '', duration: '', notes: '' };
+let errors: Record<string, string> = {};
+let formError = '';
+
+const form = await readForm(Astro);
+if (form) {
+  values = { ...readLogValues(form), id: '' };
+  const parsed = parseLogEntry(values, { isEdit: false });
+  if (!parsed.ok) errors = parsed.errors;
+  else {
+    const { error } = await supabase.rpc('my_log_save', { p_entry: parsed.payload });
+    if (error) formError = friendlyDbError(error);
+    else return Astro.redirect('/poker-log?notice=added', 303);
+  }
+}
+
+const { data, error } = await supabase.rpc('my_log_list');
+const rows = (data ?? []) as LogRow[];
+const stats = logStats(rows);
+const chart = buildChart(stats);
+const chartSmall = buildChart(stats, 360, 260);
+const tone = (c: bigint) => (c > 0n ? 'gain' : c < 0n ? 'loss' : 'neutral') as 'gain' | 'loss' | 'neutral';
+
+const notices: Record<string, string> = {
+  added: 'Added to your log.',
+  updated: 'Entry updated.',
+  deleted: 'Entry deleted.',
+};
+const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
+---
+
+<PortalLayout title="My Poker Log" access={access} current="log">
+  <header>
+    <p class="eyebrow">My Poker Log</p>
+    <h1 class="mt-3 text-4xl sm:text-5xl">Your games away from the club.</h1>
+    <p class="mt-4 max-w-2xl leading-relaxed text-silver-300">
+      Keep a private record of poker you play elsewhere, such as casinos, online or other home games, and see
+      how you’re doing over time. Only you can see this log.
+    </p>
+  </header>
+
+  <div class="mt-8">
+    <Alert tone="info" title="Games outside AK Cash Club only">{AK_WARNING}</Alert>
+  </div>
+  {notice && <div class="mt-4"><Alert tone="success">{notice}</Alert></div>}
+  {error && <div class="mt-4"><Alert tone="error">{friendlyDbError(error)}</Alert></div>}
+
+  {stats.sessions > 0 && (
+    <>
+      <section aria-labelledby="log-summary" class="mt-10">
+        <h2 id="log-summary" class="sr-only">Summary</h2>
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <div class="col-span-2 lg:col-span-1"><StatTile large label="Net result" value={formatCents(stats.lifetimeNet, { signed: true })} tone={tone(stats.lifetimeNet)} detail={`${stats.sessions} session${stats.sessions === 1 ? '' : 's'} · ${stats.winningSessions} up, ${stats.losingSessions} down`} /></div>
+          <StatTile label="Average per session" value={stats.averageNet === null ? '—' : formatCents(stats.averageNet, { signed: true })} tone={stats.averageNet === null ? 'neutral' : tone(stats.averageNet)} />
+          <StatTile label="Hourly" value={stats.hourly === null ? '—' : `${formatCents(stats.hourly, { signed: true })}/h`} tone={stats.hourly === null ? 'neutral' : tone(stats.hourly)} detail={stats.minutesPlayed ? `Over ${formatHours(stats.minutesPlayed)} recorded` : 'Add hours to see this'} />
+          <StatTile label="Total buy-ins" value={formatCents(stats.totalBuyIns)} detail={`Cash-outs ${formatCents(stats.totalCashOuts)}`} />
+        </div>
+        {stats.byFormat.length > 1 && (
+          <div class="mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-3">
+            {stats.byFormat.map((f) => (
+              <StatTile label={f.label} value={formatCents(f.net, { signed: true })} tone={tone(f.net)} detail={`${f.sessions} session${f.sessions === 1 ? '' : 's'}`} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {chart && (
+        <section class="panel mt-4 p-5 sm:p-8" aria-labelledby="log-chart-title">
+          <div class="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 id="log-chart-title" class="text-2xl sm:text-3xl">Over time</h2>
+            <p class="text-xs tracking-[0.16em] text-silver-400 uppercase">Running total after each session</p>
+          </div>
+          <div class="mt-6 hidden sm:block"><PerformanceChart model={chart} uid="log-lg" /></div>
+          {chartSmall && <div class="mt-5 sm:hidden"><PerformanceChart model={chartSmall} uid="log-sm" /></div>}
+        </section>
+      )}
+    </>
+  )}
+
+  <section id="add" class="panel mt-4 scroll-mt-28 p-5 sm:p-8" aria-labelledby="add-title">
+    <h2 id="add-title" class="text-2xl">{stats.sessions === 0 ? 'Add your first game' : 'Add a game'}</h2>
+    <div class="mt-6"><LogForm values={values} errors={errors} isEdit={false} formError={formError} /></div>
+  </section>
+
+  {rows.length > 0 && (
+    <section class="panel mt-4 overflow-hidden" aria-labelledby="entries-title">
+      <h2 id="entries-title" class="px-5 pt-6 text-2xl sm:px-8">All entries</h2>
+      <ul class="mt-4 divide-y divide-silver-100/10 border-t border-silver-100/10">
+        {rows.map((r) => {
+          const net = toCents(r.net_cents);
+          return (
+            <li>
+              <a href={`/poker-log/${r.entry_id}`} class="flex items-start justify-between gap-4 px-5 py-4 transition-colors hover:bg-silver-100/[0.03] sm:px-8">
+                <div>
+                  <p class="text-silver-100">{formatDate(String(r.played_on))} · {r.venue}</p>
+                  <p class="mt-0.5 text-xs text-silver-400">
+                    {formatLabel(r.format)}{r.stakes && ` · ${r.stakes}`}{r.duration_minutes && ` · ${formatHours(r.duration_minutes)}`}
+                  </p>
+                  <p class="mt-1 text-xs tabular-nums text-silver-400">In {formatCents(toCents(r.buy_in_cents))} · Out {formatCents(toCents(r.cash_out_cents))}</p>
+                </div>
+                <p class:list={['font-serif text-2xl tabular-nums', tone(net) === 'neutral' ? 'text-silver-100' : tone(net)]}>{formatCents(net, { signed: true })}</p>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  )}
+</PortalLayout>

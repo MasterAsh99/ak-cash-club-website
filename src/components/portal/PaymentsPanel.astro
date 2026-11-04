@@ -1,0 +1,85 @@
+---
+/** Host-only: how each player paid in, how they were paid out, and a tick when the payout is done. */
+import Alert from './Alert.astro';
+import { formatCents, toCents } from '../../lib/money';
+import { METHODS, paymentSummary, type PaymentRowIn } from '../../lib/payments';
+
+interface Props {
+  sessionId: string;
+  rows: PaymentRowIn[];
+  status?: 'saved' | 'error' | null;
+}
+const { sessionId, rows, status } = Astro.props;
+const summary = paymentSummary(rows);
+const when = (iso: string | null) =>
+  iso ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)) : '';
+---
+
+<section id="payments" class="panel mt-10 scroll-mt-28 overflow-hidden" aria-labelledby="payments-title">
+  <div class="flex flex-wrap items-baseline justify-between gap-3 px-5 pt-6 sm:px-8">
+    <h2 id="payments-title" class="text-2xl">Payments</h2>
+    <p class="text-sm">
+      {summary.toPay === 0 ? (
+        <span class="text-silver-100">✓ All payouts done</span>
+      ) : (
+        <span class="loss">{summary.toPay} payout{summary.toPay === 1 ? '' : 's'} to make · {formatCents(summary.outstandingCents)}</span>
+      )}
+    </p>
+  </div>
+  <p class="px-5 pt-2 text-sm text-silver-400 sm:px-8">
+    Record how each player paid in and how you paid them out, then tick when the payout is done. Saved changes go in the audit log.
+  </p>
+  {status === 'saved' && <div class="px-5 pt-4 sm:px-8"><Alert tone="success">Payments saved.</Alert></div>}
+  {status === 'error' && <div class="px-5 pt-4 sm:px-8"><Alert tone="error">The payments couldn’t be saved. Please try again.</Alert></div>}
+
+  <form method="post" action={`/host/sessions/${sessionId}/payments`} class="mt-5">
+    <ul class="divide-y divide-silver-100/10 border-t border-silver-100/10">
+      {rows.map((r) => {
+        const name = r.username ?? r.guest_label ?? 'Player';
+        const out = toCents(r.cash_out_cents);
+        return (
+          <li class="grid gap-4 px-5 py-5 sm:px-8 lg:grid-cols-[1.2fr_1fr_1fr_1fr] lg:items-center" data-payment-row>
+            <input type="hidden" name="pay_result_id" value={r.id} />
+            <div>
+              <p class="text-silver-50">{name}</p>
+              <p class="mt-0.5 text-xs tabular-nums text-silver-400">
+                Bought in {formatCents(toCents(r.total_buy_in_cents))} · Cashed out {formatCents(out)}
+              </p>
+            </div>
+            <div>
+              <label class="label" for={`buy_${r.id}`}>Paid in by</label>
+              <select class="input" id={`buy_${r.id}`} name="pay_buy_in">
+                <option value="">Not recorded</option>
+                {METHODS.map((m) => <option value={m.value} selected={r.buy_in_method === m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label class="label" for={`out_${r.id}`}>Paid out by</label>
+              <select class="input" id={`out_${r.id}`} name="pay_payout" disabled={out === 0n}>
+                <option value="">{out === 0n ? 'Nothing to pay' : 'Not recorded'}</option>
+                {METHODS.map((m) => <option value={m.value} selected={r.payout_method === m.value}>{m.label}</option>)}
+              </select>
+              {out === 0n && <input type="hidden" name="pay_payout" value="" />}
+            </div>
+            <div>
+              {out === 0n ? (
+                <p class="text-sm text-silver-500">No payout</p>
+              ) : (
+                <label class="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-silver-100/15 px-4 text-sm transition has-[:checked]:border-[#5f8ad3]/60 has-[:checked]:bg-[#5f8ad3]/10">
+                  <input type="checkbox" name={`paid_${r.id}`} value="yes" checked={r.payout_paid} class="size-5 accent-[#5f8ad3]" />
+                  <span>
+                    <span class="block text-silver-50">Paid out {formatCents(out)}</span>
+                    {r.payout_paid && r.payout_paid_at && <span class="block text-xs text-silver-400">✓ {when(r.payout_paid_at)}</span>}
+                  </span>
+                </label>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+    <div class="flex justify-end border-t border-silver-100/10 px-5 py-5 sm:px-8">
+      <button type="submit" class="btn-primary">Save payments</button>
+    </div>
+  </form>
+</section>

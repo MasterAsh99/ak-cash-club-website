@@ -12,7 +12,7 @@ interface Props {
   title: string;
   access?: Access | null;
   /** Highlights the current nav item. */
-  current?: 'dashboard' | 'account' | 'host' | 'auth';
+  current?: 'dashboard' | 'log' | 'account' | 'host' | 'auth';
   width?: 'narrow' | 'wide';
 }
 
@@ -24,6 +24,7 @@ const links = access
       { href: '/#about', label: 'The Club', key: 'club' },
       { href: '/#game', label: 'The Game', key: 'game' },
       { href: '/dashboard', label: 'My Dashboard', key: 'dashboard' },
+      { href: '/poker-log', label: 'My Poker Log', key: 'log' },
       { href: '/account', label: 'Account', key: 'account' },
       ...(access.isHost ? [{ href: '/host', label: 'Host Dashboard', key: 'host' }] : []),
     ]

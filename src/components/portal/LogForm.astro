@@ -1,0 +1,70 @@
+---
+import Alert from './Alert.astro';
+import { FORMATS, type LogValues } from '../../lib/poker-log';
+
+interface Props {
+  values: LogValues;
+  errors: Record<string, string>;
+  isEdit: boolean;
+  formError?: string;
+}
+const { values, errors, isEdit, formError } = Astro.props;
+const err = (k: string) => errors[k];
+const field = (k: string) => (err(k) ? 'true' : undefined);
+---
+
+<form method="post" class="space-y-5" novalidate>
+  {(formError || errors.form) && <Alert tone="error">{formError || errors.form}</Alert>}
+  <input type="hidden" name="entry_id" value={values.id} />
+  <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+    <div>
+      <label class="label" for="played_on">Date</label>
+      <input class="input" type="date" id="played_on" name="played_on" required value={values.played_on} aria-invalid={field('played_on')} />
+      {err('played_on') && <p class="field-error">{err('played_on')}</p>}
+    </div>
+    <div class="lg:col-span-2">
+      <label class="label" for="venue">Where</label>
+      <input class="input" id="venue" name="venue" maxlength="80" required placeholder="Casino, online site, a friend’s game…" value={values.venue} aria-invalid={field('venue')} />
+      {err('venue') && <p class="field-error">{err('venue')}</p>}
+    </div>
+    <div>
+      <label class="label" for="format">Format</label>
+      <select class="input" id="format" name="format" required aria-invalid={field('format')}>
+        <option value="">Choose…</option>
+        {FORMATS.map((f) => <option value={f.value} selected={values.format === f.value}>{f.label}</option>)}
+      </select>
+      {err('format') && <p class="field-error">{err('format')}</p>}
+    </div>
+    <div class="lg:col-span-2">
+      <label class="label" for="game">Game</label>
+      <input class="input" id="game" name="game" maxlength="60" placeholder="No-Limit Texas Hold’em" value={values.game} aria-invalid={field('game')} />
+      {err('game') && <p class="field-error">{err('game')}</p>}
+    </div>
+    <div>
+      <label class="label" for="stakes">Stakes / buy-in level <span class="normal-case tracking-normal text-silver-500">(optional)</span></label>
+      <input class="input" id="stakes" name="stakes" maxlength="40" placeholder="$2/$5" value={values.stakes} />
+    </div>
+    <div>
+      <label class="label" for="duration">Hours played <span class="normal-case tracking-normal text-silver-500">(optional)</span></label>
+      <input class="input" id="duration" name="duration" inputmode="decimal" placeholder="3.5 or 3:30" value={values.duration} aria-invalid={field('duration')} />
+      {err('duration') && <p class="field-error">{err('duration')}</p>}
+    </div>
+    <div>
+      <label class="label" for="buy_in">Total buy-in (CAD)</label>
+      <input class="input tabular-nums" id="buy_in" name="buy_in" inputmode="decimal" required placeholder="500" value={values.buy_in} aria-invalid={field('buy_in')} />
+      {err('buy_in') ? <p class="field-error">{err('buy_in')}</p> : <p class="hint">Include rebuys and add-ons.</p>}
+    </div>
+    <div>
+      <label class="label" for="cash_out">Cash-out / winnings (CAD)</label>
+      <input class="input tabular-nums" id="cash_out" name="cash_out" inputmode="decimal" required placeholder="0" value={values.cash_out} aria-invalid={field('cash_out')} />
+      {err('cash_out') && <p class="field-error">{err('cash_out')}</p>}
+    </div>
+    <div class="sm:col-span-2">
+      <label class="label" for="notes">Notes <span class="normal-case tracking-normal text-silver-500">(optional)</span></label>
+      <input class="input" id="notes" name="notes" maxlength="500" placeholder="Anything you want to remember" value={values.notes} />
+    </div>
+  </div>
+  <div class="flex justify-end">
+    <button type="submit" name="intent" value="save" class="btn-primary">{isEdit ? 'Save changes' : 'Add to my log'}</button>
+  </div>
+</form>

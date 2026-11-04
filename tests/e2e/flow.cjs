@@ -240,6 +240,42 @@ async function login(page, email, password, next = '') {
     await h.screenshot({ path: `${SHOTS}/09-host-players.png` });
   });
 
+  await step('host records how players paid and ticks payouts as done', async () => {
+    await h.goto(`${SITE}/host`);
+    await h.click('a:has-text("Oct 30, 2026")');
+    const panel = h.locator('#payments');
+    assert.match(await panel.innerText(), /3 payouts to make/i);
+    const row = (name) => panel.locator('[data-payment-row]', { hasText: name });
+    await row('alice').locator('select[name=pay_buy_in]').selectOption('etransfer');
+    await row('alice').locator('select[name=pay_payout]').selectOption('etransfer');
+    await row('alice').locator('input[type=checkbox]').check();
+    await row('Guest 1').locator('select[name=pay_buy_in]').selectOption('cash');
+    await row('Guest 1').locator('select[name=pay_payout]').selectOption('cash');
+    await row('Guest 1').locator('input[type=checkbox]').check();
+    await row('Guest 2').locator('select[name=pay_buy_in]').selectOption('mixed');
+    await panel.locator('button[type=submit]').click();
+    await h.waitForURL(/payments=saved/);
+    const after = await h.locator('#payments').innerText();
+    assert.match(after, /Payments saved/);
+    assert.match(after, /1 payout to make · \$1\.00/i);
+    await h.locator('#payments').screenshot({ path: `${SHOTS}/16-host-payments.png` });
+    await h.goto(`${SITE}/host`);
+    assert.match(await h.innerText('main'), /1 to pay/);
+    await h.goto(`${SITE}/host/audit`);
+    assert.match((await h.innerText('main')).replace(/\s+/g, ' '), /alice paid out: no → yes/);
+  });
+
+  await step('players cannot touch payment records', async () => {
+    const token = await accessToken(alice);
+    const res = await fetch(`${MOCK}/rest/v1/rpc/host_update_payments`, {
+      method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ p_session_id: '00000000-0000-4000-8000-000000000000', p_rows: [] }),
+    });
+    assert.equal(res.status, 403);
+    const r = await a.request.post(`${SITE}/host/sessions/00000000-0000-4000-8000-000000000000/payments`, { form: { pay_result_id: 'x' }, headers: { origin: SITE } });
+    assert.equal(r.status(), 404);
+  });
+
   await step('host records expenses (per game and general) with exact totals', async () => {
     await h.goto(`${SITE}/host/expenses`);
     await h.fill('#spent_on', '2026-10-30');
@@ -351,6 +387,56 @@ async function login(page, email, password, next = '') {
     const r = await a.goto(`${SITE}/dashboard`);
     assert.match(a.url(), /login/);
     void r;
+  });
+
+  await step('a player keeps a private log of games outside the club', async () => {
+    await login(a, 'alice@example.com', 'a brand new passphrase').catch(() => {});
+    await a.goto(`${SITE}/poker-log`);
+    if (a.url().includes('/login')) {
+      await login(a, 'alice@example.com', 'a brand new passphrase', '?next=/poker-log');
+      await a.waitForURL(/poker-log/);
+    }
+    assert.match(await a.textContent('main'), /Only record games played outside AK Cash Club/);
+    // AK Cash Club games are refused
+    await a.fill('#venue', 'AK Cash Club');
+    await a.fill('#buy_in', '200');
+    await a.fill('#cash_out', '300');
+    await a.click('main button[value=save]');
+    assert.match(await a.textContent('main'), /recorded by the host/);
+    // real entries
+    for (const [date, venue, format, buy, out, hrs] of [
+      ['2026-10-18', 'Casino Rama', 'cash', '500', '810', '4'],
+      ['2026-10-24', 'PokerStars', 'tournament', '55', '0', ''],
+    ]) {
+      await a.goto(`${SITE}/poker-log`);
+      await a.fill('#played_on', date);
+      await a.fill('#venue', venue);
+      await a.selectOption('#format', format);
+      await a.fill('#buy_in', buy);
+      await a.fill('#cash_out', out);
+      if (hrs) await a.fill('#duration', hrs);
+      await a.click('main button[value=save]');
+      await a.waitForURL(/notice=added/);
+    }
+    const body = (await a.innerText('main')).replace(/\s+/g, ' ');
+    assert.match(body, /Net result \+\$255\.00/i);
+    assert.match(body, /\+\$77\.50\/h/);
+    await a.screenshot({ path: `${SHOTS}/17-poker-log-mobile.png`, fullPage: true });
+    // the AK Cash Club dashboard is unaffected by the personal log
+    await a.goto(`${SITE}/dashboard`);
+    assert.match(await a.innerText('main'), /\+\$95\.50/);
+  });
+
+  await step('nobody else can see a player’s poker log, including the host', async () => {
+    await h.goto(`${SITE}/poker-log`);
+    const hostView = await h.innerText('main');
+    assert.ok(!/Casino Rama|PokerStars/.test(hostView), 'host must not see alice’s log');
+    const token = await accessToken(alice);
+    const list = await (await fetch(`${MOCK}/rest/v1/rpc/my_log_list`, {
+      method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: '{}',
+    })).json();
+    const r = await h.goto(`${SITE}/poker-log/${list[0].entry_id}`);
+    assert.equal(r.status(), 404);
   });
 
   // ---- links from Supabase's default email templates (?code=…) ----

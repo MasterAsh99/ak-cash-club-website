@@ -32,6 +32,8 @@
 | Atomic saves | `host_save_session` runs in one transaction; any invalid row rolls back the whole save. Unique constraints stop duplicate players and guest labels. |
 | Exact money | `bigint` cents in the database (net is a generated column); `BigInt` in the app; no floating point. |
 | Host expenses | `host_expenses` is readable only with `private.is_host_mfa()`; writes go through `host_save_expense` / `host_delete_expense` (host + MFA, reason required to edit or delete). Players get an empty result or “permission denied”. |
+| My Poker Log | `player_poker_log` rows are readable only by their owner (`player_id = auth.uid()`). There's deliberately no host clause. Writes go through `my_log_save` / `my_log_delete`, which only touch the caller's rows and refuse entries naming AK Cash Club. Deleted with the account. |
+| Payment tracking | `buy_in_method`, `payout_method` and `payout_paid` on `session_results` are excluded from players' column grants. They're changed only by `host_update_payments` (host + MFA), and the changes are audited. |
 | Audit trail | Triggers write every insert/update/delete of sessions, results, adjustments and consent to `audit_log` with actor id, time, reason, and before/after values. No role can modify or delete audit rows. |
 | XSS | Astro escapes all output; strict Content-Security-Policy; no user HTML is rendered. |
 | SQL injection | No SQL is built in the app; all access is parameterised PostgREST/RPC calls. |
