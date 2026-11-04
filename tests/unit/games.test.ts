@@ -33,3 +33,23 @@ describe('game night helpers', () => {
     expect(parseGameNightForm(fd({ date: '2026-11-06', time: '19:30', stakes: 'x', seats: '8.5', address: 'a' })).errors.seats).toBeDefined();
   });
 });
+
+import { liveTotals, playerTotals, type LivePlayer } from '../../src/lib/live';
+
+describe('live totals', () => {
+  const p = (buyins: Array<[number, 'cash' | 'etransfer']>, out: number | null = null, method: 'cash' | 'etransfer' | null = null): LivePlayer => ({
+    id: Math.random().toString(), player_id: null, username: 'x', tracking_enabled: false, guest_label: null,
+    checked_in_at: '2026-11-06T00:00:00Z', cash_out_cents: out, payout_method: method,
+    buyins: buyins.map(([c, m], i) => ({ id: String(i), amount_cents: c, method: m, created_at: '' })),
+  });
+
+  it('adds up exactly in cents, by method', () => {
+    const t = liveTotals([p([[20000, 'cash'], [10010, 'etransfer']], 45020, 'etransfer'), p([[20000, 'cash']]), p([], null)]);
+    expect(t).toMatchObject({ buyIns: 50010n, cashOuts: 45020n, inPlay: 4990n, cashIn: 40000n, etransferIn: 10010n, etransferOut: 45020n, cashOut: 0n, checkedIn: 3, stillPlaying: 1 });
+  });
+
+  it('per-player net is null until cashed out', () => {
+    expect(playerTotals(p([[20000, 'cash']]))).toEqual({ buyIn: 20000n, cashOut: null, net: null });
+    expect(playerTotals(p([[20000, 'cash']], 5, 'cash')).net).toBe(-19995n);
+  });
+});

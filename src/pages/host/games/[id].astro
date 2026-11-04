@@ -136,6 +136,16 @@ const editable = n?.status !== 'cancelled';
         )}
       </section>
 
+      {editable && (
+        <section class="panel mt-4 flex flex-wrap items-center justify-between gap-4 p-5 sm:p-8" aria-label="Live game">
+          <div>
+            <h2 class="text-2xl">Live game</h2>
+            <p class="mt-1 text-sm text-silver-400">At the table: check players in, record buy-ins and cash-outs, then record the session in one step.</p>
+          </div>
+          <a href={`/host/live/${n.id}`} class="btn-primary">Open live game</a>
+        </section>
+      )}
+
       {editable && values && (
         <section class="panel mt-4 p-5 sm:p-8" aria-labelledby="edit-title">
           <details open={Object.keys(errors).length > 0 || !!formError}>

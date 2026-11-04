@@ -666,6 +666,55 @@ async function login(page, email, password, next = '') {
     assert.ok(!/123 Test Lane/.test(await a.textContent('main')), 'cancelled player cannot see it');
   });
 
+  await step('live game: check-in, buy-ins with payment method, cash-outs, finalize into a session', async () => {
+    await h.goto(`${SITE}/host/games/${gameId}`);
+    await h.click('a:has-text("Open live game")');
+    await h.waitForURL(/\/host\/live\//);
+    await h.click('button:has-text("Start live game")');
+    await h.waitForSelector('#players article');
+    const card = (name) => h.locator(`#players article:has(h2:has-text("${name}"))`);
+    const act = async (name, kind, amount, method) => {
+      await card(name).locator(`form:has(input[value=${kind}]) input[name=amount]`).fill(amount);
+      await card(name).locator(`form:has(input[value=${kind}]) button[value=${method}]`).click();
+      await h.waitForLoadState('load');
+    };
+    assert.equal(await card('bob_99').count(), 1, 'confirmed seat listed');
+    assert.equal(await card('carol').count(), 1);
+    await h.selectOption('select[name=player_id]', { label: 'alice' });
+    await h.click('form:has(input[value=add_member]) button[type=submit]');
+    await h.waitForSelector('#players article:has(h2:has-text("alice"))');
+    await act('alice', 'buyin', '200', 'cash');
+    await act('alice', 'buyin', '100', 'etransfer');
+    await act('bob_99', 'buyin', '200', 'etransfer');
+    await act('carol', 'buyin', '200', 'cash');
+    await act('carol', 'buyin', 'abc', 'cash');
+    assert.match(await h.textContent('[role=alert]'), /dollar amount/);
+    const totals = (await h.innerText('section[aria-label=Totals]')).replace(/\s+/g, ' ');
+    assert.match(totals, /Bought in \$700\.00/i);
+    assert.match(await h.textContent('button[value=finalize], form:has(input[value=finalize]) button'), /Finalize/);
+    assert.equal(await h.isDisabled('form:has(input[value=finalize]) button'), true, 'cannot finalize while players are still in');
+    const phone = await (await browser.newContext({ ...mobile, storageState: await hostCtx.storageState(), reducedMotion: 'reduce' })).newPage();
+    await phone.goto(h.url().split('#')[0]);
+    await phone.locator('#players article').first().scrollIntoViewIfNeeded();
+    await phone.screenshot({ path: `${SHOTS}/28-live-game-mobile.png` });
+    await act('alice', 'cashout', '450.50', 'etransfer');
+    await act('bob_99', 'cashout', '0', 'cash');
+    await act('carol', 'cashout', '249.50', 'cash');
+    const done = (await h.innerText('section[aria-label=Totals]')).replace(/\s+/g, ' ');
+    assert.match(done, /Cashed out \$700\.00/i);
+    assert.match(done, /Difference \$0\.00/i);
+    await h.check('form:has(input[value=finalize]) input[name=confirm]');
+    await h.click('form:has(input[value=finalize]) button');
+    await h.waitForURL(/\/host\/sessions\/[0-9a-f-]{36}/);
+    const body = (await h.innerText('main')).replace(/\s+/g, ' ');
+    assert.match(body, /alice/);
+    assert.match(body, /bob_99/);
+    assert.match(body, /\+\$150\.50/);
+    await h.locator('#payments').screenshot({ path: `${SHOTS}/29-live-finalized-payments.png` });
+    await a.goto(`${SITE}/dashboard`);
+    assert.match(await a.textContent('main'), /\+\$150\.50/);
+  });
+
   await step('installable app: manifest, icons, offline page; member pages never cached', async () => {
     const m = await (await fetch(`${SITE}/manifest.webmanifest`)).json();
     assert.equal(m.start_url, '/dashboard');
