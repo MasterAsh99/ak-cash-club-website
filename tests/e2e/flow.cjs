@@ -295,6 +295,73 @@ async function login(page, email, password, next = '') {
     void r;
   });
 
+  // ---- links from Supabase's default email templates (?code=…) ----
+  const defaultLink = async (email) =>
+    (await (await fetch(`${MOCK}/__test/default-link`, { method: 'POST', body: JSON.stringify({ email }) })).json()).code;
+
+  await step('default-template verify link in the same browser signs the player in', async () => {
+    const ctx = await browser.newContext();
+    const p = await ctx.newPage();
+    await p.goto(`${SITE}/signup`);
+    await p.fill('#email', 'erin@example.com');
+    await p.fill('#username', 'erin');
+    await p.fill('#password', 'violet lanterns at dusk');
+    await p.fill('#confirm', 'violet lanterns at dusk');
+    await p.click('main button[type=submit]');
+    await p.waitForURL(/check-email/);
+    await p.goto(`${SITE}/auth/confirm?flow=signup&code=${await defaultLink('erin@example.com')}`);
+    await p.waitForURL(/dashboard\?notice=verified/);
+  });
+
+  await step('default-template verify link in another browser says verified, please log in', async () => {
+    const p = await (await browser.newContext()).newPage();
+    await p.goto(`${SITE}/auth/confirm?code=${await defaultLink('erin@example.com')}`);
+    assert.match(await p.textContent('main'), /Your email is verified/);
+  });
+
+  await step('default-template link that landed on the home page is forwarded', async () => {
+    const p = await (await browser.newContext()).newPage();
+    await p.goto(`${SITE}/?code=abcdefgh12345678`);
+    await p.waitForURL(/\/auth\/confirm\?code=/);
+    assert.match(await p.textContent('main'), /Your email is verified/);
+  });
+
+  await step('default-template error redirect shows the expired page', async () => {
+    const p = await (await browser.newContext()).newPage();
+    await p.goto(`${SITE}/auth/confirm?flow=recovery&error=access_denied&error_code=otp_expired`);
+    assert.match(await p.textContent('main'), /can’t be used/);
+    assert.ok(await p.$('a[href="/forgot-password"]'));
+  });
+
+  await step('default-template password reset lets the player choose a new password', async () => {
+    const ctx = await browser.newContext();
+    const p = await ctx.newPage();
+    // The code verifier cookie is created when the reset is requested in this browser.
+    await p.goto(`${SITE}/forgot-password`);
+    await p.fill('#email', 'erin@example.com');
+    await p.click('main button[type=submit]');
+    await p.waitForURL(/check-email/);
+    await p.goto(`${SITE}/auth/confirm?flow=recovery&code=${await defaultLink('erin@example.com')}`);
+    await p.fill('#password', 'copper kettle morning');
+    await p.fill('#confirm', 'copper kettle morning');
+    await p.click('main button[type=submit]');
+    await p.waitForURL(/password-updated/);
+    const q = await (await browser.newContext()).newPage();
+    await login(q, 'erin@example.com', 'copper kettle morning');
+    await q.waitForURL(/dashboard/);
+  });
+
+  await step('the recovery password step cannot be reused without the link', async () => {
+    const p = await (await browser.newContext()).newPage();
+    await login(p, 'erin@example.com', 'copper kettle morning');
+    await p.waitForURL(/dashboard/);
+    const r = await p.request.post(`${SITE}/auth/confirm`, {
+      form: { mode: 'recovery_session', flow: 'recovery', password: 'attacker password 1', confirm: 'attacker password 1' },
+      headers: { origin: SITE },
+    });
+    assert.match(await r.text(), /can’t be used/);
+  });
+
   await step('public home page still renders with a Log in link', async () => {
     const p = await (await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })).newPage();
     await p.goto(`${SITE}/`);

@@ -50,7 +50,7 @@ if (form && supabase) {
           password,
           options: {
             data: { username: values.username },
-            emailRedirectTo: `${siteUrl(Astro.url)}/auth/confirm`,
+            emailRedirectTo: `${siteUrl(Astro.url)}/auth/confirm?flow=signup`,
           },
         });
         if (error) {

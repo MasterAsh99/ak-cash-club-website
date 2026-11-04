@@ -27,7 +27,7 @@ if (form && supabase) {
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email,
-      options: { emailRedirectTo: `${siteUrl(Astro.url)}/auth/confirm` },
+      options: { emailRedirectTo: `${siteUrl(Astro.url)}/auth/confirm?flow=signup` },
     });
     if (error) console.error('resend failed', error.code);
     // Always the same message (no account enumeration).

@@ -5,6 +5,11 @@
  * token on page load: email security scanners pre-open links, which would
  * burn the token. The token is only used when the person presses the button
  * (or, for password resets, submits their new password).
+ *
+ * Fallback: if Supabase's *default* email templates are still in use, links go
+ * through Supabase first and arrive here as `?code=…` (already verified) or
+ * `?error_code=…`. Those are handled too, so nobody gets stuck. The branded
+ * templates in supabase/templates/ are preferred (scanner-safe, single step).
  */
 export const prerender = false;
 
@@ -29,11 +34,77 @@ const rawType = (form ? field(form, 'type', 20) : Astro.url.searchParams.get('ty
 const type = ALLOWED.includes(rawType) ? rawType : null;
 const tokenLooksValid = /^[A-Za-z0-9_-]{8,200}$/.test(tokenHash);
 
+const flowParam = (form ? field(form, 'flow', 20) : Astro.url.searchParams.get('flow') ?? '');
+const flow: 'signup' | 'recovery' | 'email_change' =
+  flowParam === 'recovery' || flowParam === 'email_change' ? flowParam : 'signup';
+const code = form ? '' : (Astro.url.searchParams.get('code') ?? '').trim();
+const linkError = form ? '' : (Astro.url.searchParams.get('error_code') ?? Astro.url.searchParams.get('error') ?? '');
+const RECOVERY_COOKIE = 'akc_recovery';
+
 let expired = !type || !tokenLooksValid;
+/** Default-template link: email already confirmed by Supabase, but no session here. */
+let confirmedElsewhere = false;
+/** Default-template password reset: signed in by the link, now choose a password. */
+let recoverySession = false;
 let formError = '';
 const errors: Record<string, string> = {};
 
-if (form && supabase && !expired && type) {
+if (supabase && !form && linkError) {
+  expired = true;
+} else if (supabase && !form && /^[A-Za-z0-9_-]{8,200}$/.test(code)) {
+  expired = false;
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  // supabase-js remembers which flow started the link; use it as a fallback.
+  const isRecovery = flow === 'recovery' || (data as { redirectType?: string | null } | null)?.redirectType === 'recovery';
+  if (isRecovery) {
+    if (error || !data.user) {
+      expired = true;
+    } else {
+      // Bind the password step to this user for 10 minutes.
+      Astro.cookies.set(RECOVERY_COOKIE, data.user.id, {
+        httpOnly: true, secure: Astro.url.protocol === 'https:', sameSite: 'strict', path: '/auth/confirm', maxAge: 600,
+      });
+      recoverySession = true;
+    }
+  } else if (!error) {
+    return Astro.redirect(flow === 'email_change' ? '/account?notice=email-changed' : '/dashboard?notice=verified');
+  } else {
+    // Opened in a different browser: Supabase has already confirmed the
+    // address, we just can't sign them in here.
+    confirmedElsewhere = true;
+  }
+}
+
+if (form && supabase && field(form, 'mode', 20) === 'recovery_session') {
+  expired = false;
+  recoverySession = true;
+  const user = Astro.locals.user;
+  const bound = Astro.cookies.get(RECOVERY_COOKIE)?.value;
+  if (!user || !bound || bound !== user.id) {
+    recoverySession = false;
+    expired = true;
+  } else if (!(await allowAuthAttempt(Astro.request, 'verify', user.email))) {
+    formError = RATE_LIMITED_MESSAGE;
+  } else {
+    const password = rawField(form, 'password');
+    const confirm = rawField(form, 'confirm');
+    const problem = passwordProblem(password, { email: user.email });
+    if (problem) errors.password = problem;
+    else if (password !== confirm) errors.confirm = 'The passwords don’t match.';
+    if (!errors.password && !errors.confirm) {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        errors.password = friendlyAuthError(error);
+      } else {
+        Astro.cookies.delete(RECOVERY_COOKIE, { path: '/auth/confirm' });
+        await supabase.auth.signOut({ scope: 'others' });
+        return Astro.redirect('/dashboard?notice=password-updated');
+      }
+    }
+  }
+}
+
+if (form && supabase && !expired && type && !recoverySession) {
   if (!(await allowAuthAttempt(Astro.request, 'verify'))) {
     formError = RATE_LIMITED_MESSAGE;
   } else if (type === 'recovery') {
@@ -79,12 +150,36 @@ const copy = {
   email_change: { eyebrow: 'Email change', title: 'Confirm your new email', button: 'Confirm email change' },
   recovery: { eyebrow: 'Password reset', title: 'Choose a new password', button: 'Save new password' },
 } as const;
-const c = copy[(type ?? 'signup') as keyof typeof copy];
+const c = copy[(recoverySession ? 'recovery' : type ?? (flow === 'signup' ? 'signup' : flow)) as keyof typeof copy];
+const expiredKind = type ?? flow;
 ---
 
 <PortalLayout title={expired ? 'Link expired' : c.title} current="auth" width="narrow">
   {!supabase ? (
     <NotConfigured />
+  ) : confirmedElsewhere ? (
+    <AuthCard eyebrow="Confirmed" title={flow === 'email_change' ? 'Email change confirmed' : 'Your email is verified'}>
+      <div class="space-y-5 leading-relaxed text-silver-300">
+        <p>
+          {flow === 'email_change'
+            ? 'Thanks. If you were asked to confirm from both addresses, open the link sent to your other address too.'
+            : 'Your email address has been confirmed. Log in to finish setting up your account.'}
+        </p>
+        <a href="/login" class="btn-primary w-full">Log in</a>
+      </div>
+    </AuthCard>
+  ) : recoverySession && !expired ? (
+    <AuthCard eyebrow="Password reset" title="Choose a new password">
+      <form method="post" class="space-y-6" novalidate>
+        {formError && <Alert tone="error">{formError}</Alert>}
+        <input type="hidden" name="mode" value="recovery_session" />
+        <input type="hidden" name="flow" value="recovery" />
+        <Field label="New password" name="password" type="password" autocomplete="new-password" required minlength={10} hint={PASSWORD_HELP} error={errors.password} />
+        <Field label="Confirm new password" name="confirm" type="password" autocomplete="new-password" required error={errors.confirm} />
+        <p class="text-sm text-silver-400">Saving will sign you out on any other devices.</p>
+        <button type="submit" class="btn-primary w-full">Save new password</button>
+      </form>
+    </AuthCard>
   ) : expired ? (
     <AuthCard eyebrow="Link expired" title="This link can’t be used">
       <div class="space-y-5 leading-relaxed text-silver-300">
@@ -94,9 +189,9 @@ const c = copy[(type ?? 'signup') as keyof typeof copy];
         </p>
         <div class="flex flex-col gap-3 sm:flex-row">
           {
-            type === 'recovery' ? (
+            expiredKind === 'recovery' ? (
               <a href="/forgot-password" class="btn-primary flex-1">Request a new reset link</a>
-            ) : type === 'email_change' ? (
+            ) : expiredKind === 'email_change' ? (
               <a href="/account" class="btn-primary flex-1">Go to your account</a>
             ) : (
               <a href="/check-email?for=signup" class="btn-primary flex-1">Send a new verification link</a>

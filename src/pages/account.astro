@@ -108,7 +108,7 @@ if (form) {
       else {
         const { error } = await supabase.auth.updateUser(
           { email: newEmail },
-          { emailRedirectTo: `${siteUrl(Astro.url)}/auth/confirm` },
+          { emailRedirectTo: `${siteUrl(Astro.url)}/auth/confirm?flow=email_change` },
         );
         msg.email = error
           ? { tone: 'error', text: friendlyAuthError(error) }

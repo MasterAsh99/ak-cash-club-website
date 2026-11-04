@@ -58,8 +58,9 @@ Until then, your site address is `https://ak-cash-club-website.aaronkara99.worke
 
 **Authentication → URL Configuration**
 - **Site URL:** your site address, e.g. `https://ak-cash-club-website.aaronkara99.workers.dev`
-- **Redirect URLs:** add `https://ak-cash-club-website.aaronkara99.workers.dev/auth/confirm`
-  (and the same path on your custom domain, if you add one)
+- **Redirect URLs:** add `https://ak-cash-club-website.aaronkara99.workers.dev/**`
+  (and `https://yourdomain/**` if you add a custom domain). The `**` allows the
+  `?flow=…` marker the site adds to email links.
 
 **Authentication → Sign In / Providers → Email**
 - Email provider: **enabled**

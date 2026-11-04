@@ -23,4 +23,12 @@ import Footer from '../components/Footer.astro';
     <Contact />
   </main>
   <Footer />
+  <script is:inline>
+    // If an emailed link falls back to the home page (Supabase uses the Site URL
+    // when a redirect isn't allow-listed), send it to the confirmation page.
+    (function () {
+      var q = new URLSearchParams(location.search);
+      if (q.has('code') || q.has('error_code') || q.has('token_hash')) location.replace('/auth/confirm' + location.search);
+    })();
+  </script>
 </BaseLayout>
