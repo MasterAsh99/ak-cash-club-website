@@ -5,6 +5,15 @@
  */
 
 const DB_MESSAGES: Record<string, string> = {
+  // Live game mode
+  live_game_not_started: 'Start the live game first.',
+  live_game_finalized: 'This game has been finalized. Make any corrections on the recorded session.',
+  already_in_game: 'That player is already in this game.',
+  player_has_buyins: 'This player has buy-ins. Undo them first.',
+  player_cashed_out: 'This player has cashed out. Change the cash-out first.',
+  players_not_cashed_out: 'Everyone with a buy-in needs a cash-out before you can finalize.',
+  no_buyins: 'Record a buy-in first.',
+  buyin_not_found: 'That buy-in couldn’t be found.',
   // Game nights
   game_night_not_found: 'That game night couldn’t be found.',
   requests_closed: 'Seat requests for this game are closed.',
