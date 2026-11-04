@@ -3,7 +3,7 @@
   "short_name": "AK Cash Club",
   "description": "Members’ area for AK Cash Club, a private poker game in London, Ontario.",
   "id": "/",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

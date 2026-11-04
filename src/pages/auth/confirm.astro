@@ -19,7 +19,7 @@ import AuthCard from '../../components/portal/AuthCard.astro';
 import Field from '../../components/portal/Field.astro';
 import Alert from '../../components/portal/Alert.astro';
 import NotConfigured from '../../components/portal/NotConfigured.astro';
-import { readForm } from '../../lib/access';
+import { readForm, takeNext } from '../../lib/access';
 import { friendlyAuthError } from '../../lib/errors';
 import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../../lib/ratelimit';
 import { PASSWORD_HELP, field, passwordProblem, rawField } from '../../lib/validation';
@@ -67,7 +67,7 @@ if (supabase && !form && linkError) {
       recoverySession = true;
     }
   } else if (!error) {
-    return Astro.redirect(flow === 'email_change' ? '/account?notice=email-changed' : '/dashboard?notice=verified');
+    return Astro.redirect(flow === 'email_change' ? '/account?notice=email-changed' : takeNext(Astro, '/?notice=verified'));
   } else {
     // Opened in a different browser: Supabase has already confirmed the
     // address, we just can't sign them in here.
@@ -139,7 +139,7 @@ if (form && supabase && !expired && type && !recoverySession) {
       // With "secure email change", both the old and new address must confirm.
       return Astro.redirect(data.session ? '/account?notice=email-changed' : '/account?notice=email-change-partial');
     } else {
-      return Astro.redirect('/dashboard?notice=verified');
+      return Astro.redirect(takeNext(Astro, '/?notice=verified'));
     }
   }
 }

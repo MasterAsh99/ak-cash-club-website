@@ -5,6 +5,14 @@
  */
 
 const DB_MESSAGES: Record<string, string> = {
+  // Games hub
+  guest_already_added: 'A guest with that name is already on this game.',
+  guest_name_required: 'Enter the guest’s name (up to 60 characters).',
+  guest_name_too_long: 'Keep the guest’s name to 60 characters.',
+  game_night_closed_for_changes: 'This game is cancelled or completed, so it can’t be changed.',
+  game_night_completed: 'This game is completed, so it can’t be edited.',
+  not_on_waitlist: 'That player isn’t on the waitlist any more.',
+  announcement_too_long: 'Keep the announcement to 280 characters.',
   // Member tools
   hand_not_found: 'That hand couldn’t be found.',
   invalid_cards: 'Check the cards: two hole cards (or none), a board of 3–5 cards, and no card used twice.',

@@ -1,25 +1,21 @@
 ---
+/** Host area navigation: games first, then results and records. */
 interface Props {
-  current: 'sessions' | 'new' | 'games' | 'players' | 'expenses' | 'audit';
+  current: 'games' | 'results' | 'players' | 'expenses' | 'audit';
 }
 const { current } = Astro.props;
 const items = [
-  { key: 'sessions', href: '/host', label: 'Sessions' },
-  { key: 'new', href: '/host/sessions/new', label: 'New session' },
-  { key: 'games', href: '/host/games', label: 'Game nights' },
+  { key: 'games', href: '/host', label: 'Games' },
+  { key: 'results', href: '/host/sessions', label: 'Results' },
   { key: 'players', href: '/host/players', label: 'Players' },
   { key: 'expenses', href: '/host/expenses', label: 'Expenses' },
   { key: 'audit', href: '/host/audit', label: 'Audit log' },
 ];
 ---
 
-<div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-  <div>
-    <p class="eyebrow">Host Dashboard</p>
-    <slot />
-  </div>
-  <nav aria-label="Host">
-    <ul class="flex flex-wrap gap-2 text-sm">
+<div>
+  <nav aria-label="Host" class="-mx-1 overflow-x-auto pb-1 [scrollbar-width:none]">
+    <ul class="flex gap-2 px-1 text-sm whitespace-nowrap">
       {items.map((i) => (
         <li>
           <a
@@ -29,11 +25,10 @@ const items = [
               'inline-flex min-h-10 items-center rounded-full px-4 transition',
               i.key === current ? 'bg-silver-100 text-midnight-950' : 'border border-silver-100/15 text-silver-200 hover:border-steel-300/50',
             ]}
-          >
-            {i.label}
-          </a>
+          >{i.label}</a>
         </li>
       ))}
     </ul>
   </nav>
+  <div class="mt-6"><slot /></div>
 </div>

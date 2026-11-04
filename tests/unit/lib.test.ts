@@ -143,10 +143,15 @@ describe('usernames and passwords', () => {
 
   it('only allows safe post-login redirects', () => {
     expect(safeNext('/host/sessions/new')).toBe('/host/sessions/new');
-    expect(safeNext('//evil.com')).toBe('/dashboard');
-    expect(safeNext('https://evil.com')).toBe('/dashboard');
-    expect(safeNext('/\\evil.com')).toBe('/dashboard');
-    expect(safeNext('/login')).toBe('/dashboard');
+    expect(safeNext('/games/123e4567-e89b-12d3-a456-426614174000')).toBe('/games/123e4567-e89b-12d3-a456-426614174000');
+    expect(safeNext('/')).toBe('/');
+    expect(safeNext('/?notice=verified')).toBe('/?notice=verified');
+    expect(safeNext('/gamesx')).toBe('/');
+    expect(safeNext('/games/../../x')).toBe('/');
+    expect(safeNext('//evil.com')).toBe('/');
+    expect(safeNext('https://evil.com')).toBe('/');
+    expect(safeNext('/\\evil.com')).toBe('/');
+    expect(safeNext('/login')).toBe('/');
   });
 });
 

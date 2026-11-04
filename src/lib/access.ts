@@ -18,10 +18,28 @@ export interface Access {
 }
 
 /** Only allow same-site relative paths into the member area as "next" targets. */
-export function safeNext(raw: string | null | undefined, fallback = '/dashboard'): string {
+export function safeNext(raw: string | null | undefined, fallback = '/'): string {
   if (!raw) return fallback;
-  if (!/^\/(dashboard|account|host|poker-log|games)(\/[A-Za-z0-9/_-]*)?(\?[A-Za-z0-9=&_-]*)?$/.test(raw)) return fallback;
+  if (!/^\/((dashboard|account|host|poker-log|games)(\/[A-Za-z0-9/_-]*)?)?(\?[A-Za-z0-9=&_-]*)?$/.test(raw)) return fallback;
   return raw;
+}
+
+const NEXT_COOKIE = 'akc_next';
+
+/** Remember where a new member was heading, so email verification can return them there. */
+export function rememberNext(Astro: AstroGlobal, raw: string | null | undefined): void {
+  const next = safeNext(raw, '');
+  if (!next) return;
+  Astro.cookies.set(NEXT_COOKIE, next, {
+    path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: 60 * 60 * 24 * 2,
+  });
+}
+
+/** Where to go after verifying an email: the remembered page, or the fallback. */
+export function takeNext(Astro: AstroGlobal, fallback: string): string {
+  const next = safeNext(Astro.cookies.get(NEXT_COOKIE)?.value, '');
+  if (Astro.cookies.has(NEXT_COOKIE)) Astro.cookies.delete(NEXT_COOKIE, { path: '/' });
+  return next || fallback;
 }
 
 export async function loadAccess(Astro: AstroGlobal): Promise<Access | null> {

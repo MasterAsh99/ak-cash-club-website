@@ -1,0 +1,98 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../../../layouts/PortalLayout.astro';
+import HostNav from '../../../components/portal/HostNav.astro';
+import Alert from '../../../components/portal/Alert.astro';
+import { requireHost } from '../../../lib/access';
+import { friendlyDbError } from '../../../lib/errors';
+import { formatCents, toCents } from '../../../lib/money';
+import { formatDate } from '../../../lib/stats';
+
+const access = await requireHost(Astro);
+if (access instanceof Response) return access;
+
+const page = Math.max(0, Math.min(1000, Number.parseInt(Astro.url.searchParams.get('page') ?? '0', 10) || 0));
+const PAGE = 25;
+const { data, error } = await Astro.locals.supabase!.rpc('host_list_sessions', { p_limit: PAGE + 1, p_offset: page * PAGE });
+type Row = {
+  session_id: string; played_on: string; stakes: string; title: string | null; game_type: string;
+  player_count: number; total_buy_in_cents: unknown; total_net_cents: unknown; unexplained_cents: unknown;
+  payouts_outstanding: number;
+};
+const all = (data ?? []) as Row[];
+const sessions = all.slice(0, PAGE);
+const hasMore = all.length > PAGE;
+const notice = Astro.url.searchParams.get('notice') === 'deleted' ? 'The session was deleted. The audit log keeps a full record of it.' : '';
+---
+
+<PortalLayout title="Results" access={access} current="host">
+  <HostNav current="results">
+    <h1 class="mt-3 text-4xl sm:text-5xl">Session results</h1>
+    <a href="/host/sessions/new" class="btn-ghost mt-4">Record a session by hand</a>
+  </HostNav>
+
+  {notice && <div class="mt-8"><Alert tone="success">{notice}</Alert></div>}
+  {error && <div class="mt-8"><Alert tone="error">{friendlyDbError(error)}</Alert></div>}
+
+  {!error && sessions.length === 0 && page === 0 ? (
+    <section class="panel mt-10 p-10 text-center">
+      <h2 class="text-3xl">No sessions recorded yet.</h2>
+      <p class="mx-auto mt-3 max-w-md text-silver-300">Record your first game to start building each player’s history.</p>
+      <a href="/host/sessions/new" class="btn-primary mt-8">Record a session</a>
+    </section>
+  ) : (
+    <section class="panel mt-10 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[46rem] text-left text-sm tabular-nums">
+          <caption class="sr-only">Recorded sessions, newest first</caption>
+          <thead>
+            <tr class="border-b border-silver-100/10 text-[0.68rem] tracking-[0.16em] text-silver-400 uppercase">
+              <th scope="col" class="px-5 py-4 font-medium sm:px-8">Date</th>
+              <th scope="col" class="px-3 py-4 font-medium">Session</th>
+              <th scope="col" class="px-3 py-4 text-right font-medium">Players</th>
+              <th scope="col" class="px-3 py-4 text-right font-medium">Buy-ins</th>
+              <th scope="col" class="px-3 py-4 text-right font-medium">Payouts</th>
+              <th scope="col" class="px-5 py-4 text-right font-medium sm:px-8">Reconciliation</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-silver-100/10">
+            {sessions.map((s) => {
+              const unexplained = toCents(s.unexplained_cents);
+              return (
+                <tr class="transition-colors hover:bg-silver-100/[0.03]">
+                  <th scope="row" class="px-5 py-4 font-normal sm:px-8">
+                    <a class="link" href={`/host/sessions/${s.session_id}`}>{formatDate(s.played_on)}</a>
+                  </th>
+                  <td class="px-3 py-4 text-silver-300">{s.title ?? 'Untitled'} · {s.stakes}</td>
+                  <td class="px-3 py-4 text-right text-silver-300">{s.player_count}</td>
+                  <td class="px-3 py-4 text-right text-silver-300">{formatCents(toCents(s.total_buy_in_cents))}</td>
+                  <td class="px-3 py-4 text-right">
+                    {Number(s.payouts_outstanding) === 0 ? (
+                      <span class="text-silver-200">✓ Done</span>
+                    ) : (
+                      <a class="loss underline-offset-4 hover:underline" href={`/host/sessions/${s.session_id}#payments`}>{s.payouts_outstanding} to pay</a>
+                    )}
+                  </td>
+                  <td class="px-5 py-4 text-right sm:px-8">
+                    {unexplained === 0n ? (
+                      <span class="text-silver-200">✓ Balanced</span>
+                    ) : (
+                      <span class="loss">! {formatCents(unexplained, { signed: true })} unexplained</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {(page > 0 || hasMore) && (
+        <div class="flex justify-between border-t border-silver-100/10 px-5 py-4 text-sm sm:px-8">
+          {page > 0 ? <a class="link" href={`/host?page=${page - 1}`}>← Newer</a> : <span></span>}
+          {hasMore && <a class="link" href={`/host?page=${page + 1}`}>Older →</a>}
+        </div>
+      )}
+    </section>
+  )}
+</PortalLayout>

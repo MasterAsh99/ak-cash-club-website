@@ -19,7 +19,7 @@ const [date = '', time = ''] = values.starts_local.split('T');
   <Field label="Date" name="date" type="date" value={date} required error={errors.date} />
   <Field label="Start time (Toronto time)" name="time" type="time" value={time} required error={errors.time} />
   <Field label="Stakes" name="stakes" value={values.stakes} required maxlength={40} placeholder="$1/$2" error={errors.stakes} />
-  <Field label="Seats for players" name="seats" type="number" inputmode="numeric" min={2} max={12} value={Number.isFinite(values.seats) ? String(values.seats) : ''} required error={errors.seats} />
+  <Field label="Table capacity (seats)" name="seats" type="number" inputmode="numeric" min={2} max={12} value={Number.isFinite(values.seats) ? String(values.seats) : ''} required error={errors.seats} />
   <div class="sm:col-span-2">
     <Field label="Game" name="game_type" value={values.game_type} maxlength={60} placeholder="No-Limit Texas Hold’em" hint="Leave blank for No-Limit Texas Hold’em." />
   </div>
@@ -49,6 +49,12 @@ const [date = '', time = ''] = values.starts_local.split('T');
     </div>
   </fieldset>
 
+  <label class="flex items-start gap-3 text-sm text-silver-200 sm:col-span-2">
+    <input type="checkbox" name="auto_fill_waitlist" value="yes" checked={values.auto_fill_waitlist} class="mt-1 size-4 accent-[#5f8ad3]" />
+    <span>Fill open seats from the waitlist automatically
+      <span class="block text-xs text-silver-400">When a confirmed player drops out, the first person on the waitlist gets the seat without you approving it. Leave off to choose yourself.</span></span>
+  </label>
+
   {!isEdit && (
     <label class="flex items-start gap-3 text-sm text-silver-200 sm:col-span-2">
       <input type="checkbox" name="announce" value="yes" checked={values.announce} class="mt-1 size-4 accent-[#5f8ad3]" />
@@ -59,5 +65,5 @@ const [date = '', time = ''] = values.starts_local.split('T');
     <p class="text-sm text-silver-400 sm:col-span-2">Changing the date or time emails everyone with a seat or request.</p>
   )}
 
-  <div class="sm:col-span-2"><button type="submit" class="btn-primary">{isEdit ? 'Save changes' : 'Open game night'}</button></div>
+  <div class="sm:col-span-2"><button type="submit" class="btn-primary">{isEdit ? 'Save changes' : 'Create game'}</button></div>
 </form>

@@ -110,6 +110,16 @@ ready” and new-game emails are opt-in, with the time of consent recorded.
       (`src/lib/notify-email.ts`).
 - [ ] Unsubscribe requests take effect immediately (well inside CASL’s 10 business days).
 
+## E2. Guests and attendance lists
+
+- [ ] Guests' names are personal information about people who never agreed to the site's privacy notice. Tell guests their name is recorded by the host for the game list, honour removal requests (Edit guest names / Remove on the game page), and keep the 12-month automatic deletion. Consider whether PIPEDA applies to a private home game; get advice if unsure.
+- [ ] Masked names ("A*****") still reveal the first letter and the fact that someone attended. In a small club, regulars may guess who it is. Consider telling members this in the privacy notice (it does) and offering to hide a member entirely if they ask.
+- [ ] A guest's results recorded through live mode are stored under their name in the host-only session records. They are never linked to an account automatically if the guest later signs up.
+
+## E3. Running games through the website
+
+- [ ] Publishing a schedule and taking seat requests online makes the game more organised and more visible. Review with a lawyer whether this changes the "common gaming house" analysis (Criminal Code ss. 197 and 201) and whether any private-game exceptions apply. The site still takes no payments, rake, fees or wagers, and must not.
+
 ## F. Platform terms
 
 - [ ] Read the acceptable-use terms of **Supabase**, **Cloudflare** and **Resend**, and

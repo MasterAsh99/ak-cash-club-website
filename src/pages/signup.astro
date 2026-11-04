@@ -6,7 +6,7 @@ import AuthCard from '../components/portal/AuthCard.astro';
 import Field from '../components/portal/Field.astro';
 import Alert from '../components/portal/Alert.astro';
 import NotConfigured from '../components/portal/NotConfigured.astro';
-import { readForm } from '../lib/access';
+import { readForm, rememberNext, safeNext } from '../lib/access';
 import { siteUrl } from '../lib/env';
 import { friendlyAuthError } from '../lib/errors';
 import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../lib/ratelimit';
@@ -14,7 +14,8 @@ import {
   PASSWORD_HELP, USERNAME_HELP, field, isEmail, passwordProblem, rawField, usernameMessage, usernameProblem,
 } from '../lib/validation';
 
-if (Astro.locals.user) return Astro.redirect('/dashboard');
+const nextParam = Astro.url.searchParams.get('next');
+if (Astro.locals.user) return Astro.redirect(safeNext(nextParam));
 const supabase = Astro.locals.supabase;
 
 const values = { email: '', username: '' };
@@ -61,6 +62,7 @@ if (form && supabase) {
         } else {
           // Same response whether or not the email already had an account,
           // so this page can't be used to discover who is a member.
+          rememberNext(Astro, nextParam);
           return Astro.redirect('/check-email?for=signup');
         }
       }
