@@ -23,6 +23,11 @@ type Row = {
 const all = (data ?? []) as Row[];
 const sessions = all.slice(0, PAGE);
 const hasMore = all.length > PAGE;
+// Seat requests waiting for a decision (if game nights are set up).
+const { data: nightData } = await Astro.locals.supabase!.rpc('host_list_game_nights', { p_include_past: false });
+const pendingRequests = ((nightData ?? []) as Array<{ requested_count: number; status: string }>)
+  .filter((g) => g.status !== 'cancelled')
+  .reduce((sum, g) => sum + g.requested_count, 0);
 const notice = Astro.url.searchParams.get('notice') === 'deleted' ? 'The session was deleted. The audit log keeps a full record of it.' : '';
 ---
 
@@ -32,6 +37,12 @@ const notice = Astro.url.searchParams.get('notice') === 'deleted' ? 'The session
   </HostNav>
 
   {notice && <div class="mt-8"><Alert tone="success">{notice}</Alert></div>}
+  {pendingRequests > 0 && (
+    <a href="/host/games" class="panel mt-8 flex items-center justify-between gap-4 p-5 transition hover:border-steel-300/40 sm:px-8">
+      <span class="text-silver-100">{pendingRequests} seat request{pendingRequests === 1 ? '' : 's'} waiting for you</span>
+      <span class="text-sm text-steel-300">Review →</span>
+    </a>
+  )}
   {error && <div class="mt-8"><Alert tone="error">{friendlyDbError(error)}</Alert></div>}
 
   {!error && sessions.length === 0 && page === 0 ? (

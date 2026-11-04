@@ -240,6 +240,12 @@ createServer(async (req, res) => {
       }
       return send(res, 200, { id: randomUUID() });
     }
+    // Move a game night to late tonight (Toronto time), so it's "game day".
+    if (url.pathname === '/__test/game-today' && req.method === 'POST') {
+      const { id } = await body(req);
+      await db.owner(`update public.game_nights set starts_at = ((now() at time zone 'America/Toronto')::date + time '23:59') at time zone 'America/Toronto' where id = $1`, [id]);
+      return send(res, 200, { ok: true });
+    }
     if (url.pathname === '/__test/resend/sent') return send(res, 200, resendSent);
     // Skip the 15-minute settle time for queued notification emails.
     if (url.pathname === '/__test/notify-due' && req.method === 'POST') {
