@@ -1,0 +1,8 @@
+---
+import { HELP } from '../../lib/wellbeing';
+---
+<p class="text-sm leading-relaxed text-silver-300">
+  If gambling ever stops feeling like fun, talk to someone. <span class="text-silver-100">{HELP.name}</span>:
+  <a class="link" href={`tel:${HELP.phone.replaceAll('-', '')}`}>{HELP.phone}</a> · {HELP.text} ·
+  <a class="link" href={HELP.url} rel="noopener noreferrer" target="_blank">connexontario.ca</a>. {HELP.note}
+</p>

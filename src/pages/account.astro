@@ -11,6 +11,10 @@ import { friendlyAuthError, friendlyDbError } from '../lib/errors';
 import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../lib/ratelimit';
 import { PREF_KEYS, PREF_LABELS, type PrefKey } from '../lib/notify-email';
 import { formatDate } from '../lib/stats';
+import HelpLine from '../components/portal/HelpLine.astro';
+import { centsToInput, centsToJson, formatCents, parseDollars, toCents } from '../lib/money';
+import { BREAK_OPTIONS, REMINDER_OPTIONS, limitStatus, onBreak, type Wellbeing } from '../lib/wellbeing';
+import { formatGameTime } from '../lib/games';
 import {
   PASSWORD_HELP, USERNAME_HELP, field, isEmail, passwordProblem, rawField, usernameMessage, usernameProblem,
 } from '../lib/validation';
@@ -19,7 +23,7 @@ let access = await requireMember(Astro);
 if (access instanceof Response) return access;
 const supabase = Astro.locals.supabase!;
 
-type Section = 'username' | 'tracking' | 'notifications' | 'password' | 'email' | 'delete';
+type Section = 'username' | 'tracking' | 'notifications' | 'limit' | 'reminder' | 'break' | 'password' | 'email' | 'delete';
 const msg: Partial<Record<Section, { tone: 'success' | 'error'; text: string }>> = {};
 const errors: Record<string, string> = {};
 
@@ -83,6 +87,37 @@ if (form) {
     msg.notifications = error
       ? { tone: 'error', text: friendlyDbError(error) }
       : { tone: 'success', text: 'Your email preferences have been saved.' };
+  }
+
+  if (action === 'loss_limit' && !access.isHost) {
+    const raw = field(form, 'limit', 20);
+    const remove = form.get('remove') === 'yes';
+    const parsed = remove ? null : parseDollars(raw);
+    if (parsed && (!parsed.ok || parsed.cents < 100n)) errors.limit = parsed.ok ? 'Enter at least $1.' : parsed.error;
+    else {
+      const { data, error } = await supabase.rpc('set_my_loss_limit', { p_cents: parsed ? centsToJson(parsed.cents) : null });
+      msg.limit = error ? { tone: 'error', text: friendlyDbError(error) }
+        : data === 'pending' ? { tone: 'success', text: 'Got it. Raising or removing a limit takes effect in 24 hours. Until then your current limit stays in place.' }
+        : { tone: 'success', text: 'Your monthly loss limit is set.' };
+    }
+  }
+
+  if (action === 'session_reminder' && !access.isHost) {
+    const v = field(form, 'minutes', 4);
+    const minutes = v === '' ? null : Number(v);
+    const { error } = await supabase.rpc('set_my_session_reminder', { p_minutes: minutes !== null && Number.isFinite(minutes) ? minutes : null });
+    msg.reminder = error ? { tone: 'error', text: friendlyDbError(error) }
+      : { tone: 'success', text: minutes ? `We’ll email you after ${minutes / 60} hours at an AK Cash Club game (from when the host checks you in).` : 'Session reminders are off.' };
+  }
+
+  if (action === 'break' && !access.isHost) {
+    const days = Number(field(form, 'days', 3));
+    if (form.get('confirm_break') !== 'yes') errors.break = 'Please tick the box to confirm.';
+    else {
+      const { error } = await supabase.rpc('take_a_break', { p_days: days });
+      msg.break = error ? { tone: 'error', text: friendlyDbError(error) }
+        : { tone: 'success', text: 'Your break has started. Seat requests and new-game emails are paused, and any pending requests were withdrawn.' };
+    }
   }
 
   if (action === 'password') {
@@ -159,6 +194,14 @@ if (!access.isHost) {
   const row = Array.isArray(data) ? data[0] : data;
   if (!error && row) prefs = Object.fromEntries(PREF_KEYS.map((k) => [k, Boolean(row[k])])) as Record<PrefKey, boolean>;
 }
+
+// Responsible-play settings (null before the database update is applied).
+let wellbeing: Wellbeing | null = null;
+if (!access.isHost) {
+  const { data, error } = await supabase.rpc('get_my_wellbeing');
+  if (!error && data) wellbeing = data as Wellbeing;
+}
+const limit = limitStatus(wellbeing);
 
 const notices: Record<string, { tone: 'success' | 'error'; text: string }> = {
   'email-changed': { tone: 'success', text: 'Your email address has been changed.' },
@@ -279,6 +322,87 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
       </section>
     )}
 
+
+    <!-- Play safely -->
+    {wellbeing && (
+      <section id="play-safely" class="panel scroll-mt-28 p-6 sm:p-9" aria-labelledby="safe-title">
+        <h2 id="safe-title" class="text-2xl sm:text-3xl">Play within your limits</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-relaxed text-silver-400">
+          Tools to keep poker fun. They’re private to you: the host can’t see these settings.
+        </p>
+
+        <div class="mt-8 grid gap-8 lg:grid-cols-3">
+          <form method="post" novalidate aria-labelledby="limit-title">
+            <input type="hidden" name="action" value="loss_limit" />
+            <h3 id="limit-title" class="text-lg text-silver-50">Monthly loss limit</h3>
+            <p class="mt-2 text-sm text-silver-400">Counts AK Cash Club results (with tracking on) and your Poker Log. If you reach it, seat requests pause until next month.</p>
+            {msg.limit && <div class="mt-4"><Alert tone={msg.limit.tone}>{msg.limit.text}</Alert></div>}
+            {limit && (
+              <div class="mt-4">
+                <div class="flex justify-between text-xs text-silver-300"><span>This month: down {formatCents(limit.lost)}</span><span>Limit {formatCents(limit.limit)}</span></div>
+                <div class="mt-2 h-2 overflow-hidden rounded-full bg-silver-100/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={limit.pct} aria-label="Monthly loss limit used">
+                  <div class:list={['h-full rounded-full', limit.level === 'ok' ? 'bg-[#5f8ad3]' : 'bg-[#d3707f]']} style={`width:${limit.pct}%`}></div>
+                </div>
+              </div>
+            )}
+            {wellbeing.pending_limit_change && (
+              <p class="mt-3 text-xs text-silver-400">
+                {wellbeing.pending_limit_cents === null ? 'Removing your limit' : `Changing to ${formatCents(toCents(wellbeing.pending_limit_cents))}`} on {formatGameTime(wellbeing.pending_effective_at!, 'short')}
+              </p>
+            )}
+            <div class="mt-4">
+              <label for="limit" class="label">Limit ($)</label>
+              <input id="limit" name="limit" inputmode="decimal" class="input" value={limit ? centsToInput(limit.limit) : ''} placeholder="e.g. 300" aria-invalid={errors.limit ? 'true' : undefined} />
+              {errors.limit && <p class="field-error">{errors.limit}</p>}
+            </div>
+            <div class="mt-4 flex flex-wrap gap-3">
+              <button type="submit" class="btn-ghost">Set limit</button>
+              {limit && <button type="submit" name="remove" value="yes" class="min-h-11 px-2 text-sm text-silver-400 hover:text-silver-100">Remove</button>}
+            </div>
+          </form>
+
+          <form method="post" aria-labelledby="reminder-title">
+            <input type="hidden" name="action" value="session_reminder" />
+            <h3 id="reminder-title" class="text-lg text-silver-50">Long-session reminder</h3>
+            <p class="mt-2 text-sm text-silver-400">An email once you’ve been at an AK Cash Club game this long, counted from when the host checks you in. It isn’t sent if you’ve already cashed out.</p>
+            {msg.reminder && <div class="mt-4"><Alert tone={msg.reminder.tone}>{msg.reminder.text}</Alert></div>}
+            <div class="mt-4">
+              <label for="minutes" class="label">Remind me after</label>
+              <select id="minutes" name="minutes" class="input">
+                <option value="">Off</option>
+                {REMINDER_OPTIONS.map((m) => <option value={m} selected={wellbeing!.session_reminder_minutes === m}>{m / 60} hours</option>)}
+              </select>
+            </div>
+            <button type="submit" class="btn-ghost mt-4">Save reminder</button>
+          </form>
+
+          <form method="post" novalidate aria-labelledby="break-title">
+            <input type="hidden" name="action" value="break" />
+            <h3 id="break-title" class="text-lg text-silver-50">Take a break</h3>
+            {onBreak(wellbeing) ? (
+              <p class="mt-2 text-sm text-silver-200">You’re on a break until {formatGameTime(wellbeing.break_until!)}. Seat requests and new-game emails are paused. You can make it longer, but not shorter.</p>
+            ) : (
+              <p class="mt-2 text-sm text-silver-400">Pauses seat requests and new-game emails, and withdraws any pending requests. A break can’t be ended early.</p>
+            )}
+            {msg.break && <div class="mt-4"><Alert tone={msg.break.tone}>{msg.break.text}</Alert></div>}
+            <div class="mt-4">
+              <label for="days" class="label">{onBreak(wellbeing) ? 'Extend to' : 'Break for'}</label>
+              <select id="days" name="days" class="input">
+                {BREAK_OPTIONS.map((d) => <option value={d} selected={d === 7}>{d === 1 ? '24 hours' : `${d} days`}</option>)}
+              </select>
+            </div>
+            <label class="mt-4 flex items-start gap-3 text-sm text-silver-200">
+              <input type="checkbox" name="confirm_break" value="yes" class="mt-1 size-4 accent-[#5f8ad3]" />
+              I understand I can’t end it early.
+            </label>
+            {errors.break && <p class="field-error">{errors.break}</p>}
+            <button type="submit" class="btn-ghost mt-4">{onBreak(wellbeing) ? 'Extend my break' : 'Start my break'}</button>
+          </form>
+        </div>
+
+        <div class="mt-8 border-t border-silver-100/10 pt-6"><HelpLine /></div>
+      </section>
+    )}
 
     <!-- Install as an app -->
     <section id="install" class="panel scroll-mt-28 p-6 sm:p-9" aria-labelledby="install-title">

@@ -6,6 +6,7 @@ import Alert from '../../components/portal/Alert.astro';
 import StatTile from '../../components/portal/StatTile.astro';
 import PerformanceChart from '../../components/portal/PerformanceChart.astro';
 import LogForm from '../../components/portal/LogForm.astro';
+import PokerTabs from '../../components/portal/PokerTabs.astro';
 import { readForm, requireMember } from '../../lib/access';
 import { buildChart } from '../../lib/chart';
 import { friendlyDbError } from '../../lib/errors';
@@ -58,6 +59,7 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
       how you’re doing over time. Only you can see this log.
     </p>
   </header>
+  <PokerTabs current="log" />
 
   <div class="mt-8">
     <Alert tone="info" title="Games outside AK Cash Club only">{AK_WARNING}</Alert>

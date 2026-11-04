@@ -56,6 +56,7 @@ The club’s address is **`https://akcashclub.com`** (with `www.` redirecting to
    4. `20261106000000_notifications.sql` (email preferences, “your result is ready” emails)
    5. `20261107000000_game_nights.sql` (game nights, seat requests, waitlist, reminders)
    6. `20261108000000_live_game.sql` (live game-night mode for the host)
+   7. `20261109000000_my_poker_tools.sql` (hand notes, loss limit, session reminder, take a break)
 
    When a new file is added in future, run just that file.
    *(Alternative for developers: `npx supabase link` then `npx supabase db push`.)*

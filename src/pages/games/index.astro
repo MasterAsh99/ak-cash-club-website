@@ -7,6 +7,7 @@ import SeatBadge from '../../components/portal/SeatBadge.astro';
 import { readForm, requireMember } from '../../lib/access';
 import { friendlyDbError } from '../../lib/errors';
 import { formatGameTime, seatsLeft, type GameNightRow } from '../../lib/games';
+import { onBreak, type Wellbeing } from '../../lib/wellbeing';
 
 const access = await requireMember(Astro);
 if (access instanceof Response) return access;
@@ -22,6 +23,10 @@ if (form && form.get('action') === 'request') {
   else return Astro.redirect(`/games/${encodeURIComponent(id)}?notice=requested`, 303);
 }
 
+const { data: wbData } = await supabase.rpc('get_my_wellbeing');
+const wellbeing = (wbData ?? null) as Wellbeing | null;
+const pausedOnBreak = onBreak(wellbeing);
+const paused = pausedOnBreak || Boolean(wellbeing?.limit_reached);
 const { data, error } = await supabase.rpc('list_game_nights');
 const nights = (data ?? []) as GameNightRow[];
 ---
@@ -36,6 +41,12 @@ const nights = (data ?? []) as GameNightRow[];
     </p>
   </header>
 
+  {paused && (
+    <div class="mt-8"><Alert tone="info" title={pausedOnBreak ? 'You’re taking a break' : 'Monthly loss limit reached'}>
+      {pausedOnBreak ? `Seat requests are paused until ${formatGameTime(wellbeing!.break_until!)}.` : 'You’ve reached the limit you set for this month, so seat requests are paused until next month.'}
+      {' '}<a class="link" href="/account#play-safely">Your settings</a>
+    </Alert></div>
+  )}
   {formError && <div class="mt-8"><Alert tone="error">{formError}</Alert></div>}
   {error && <div class="mt-8"><Alert tone="error">We couldn’t load the games just now. Please refresh in a moment.</Alert></div>}
 
@@ -53,7 +64,7 @@ const nights = (data ?? []) as GameNightRow[];
   <div class="mt-10 grid gap-4 md:grid-cols-2">
     {nights.map((n) => {
       const left = seatsLeft(n);
-      const canRequest = n.status === 'open' && (!n.my_status || n.my_status === 'cancelled') && new Date(n.starts_at) > new Date();
+      const canRequest = !paused && n.status === 'open' && (!n.my_status || n.my_status === 'cancelled') && new Date(n.starts_at) > new Date();
       return (
         <article class:list={['panel flex flex-col p-6 sm:p-8', n.status === 'cancelled' && 'opacity-70']}>
           <div class="flex flex-wrap items-start justify-between gap-3">

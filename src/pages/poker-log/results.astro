@@ -1,0 +1,141 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import Alert from '../../components/portal/Alert.astro';
+import StatTile from '../../components/portal/StatTile.astro';
+import PerformanceChart from '../../components/portal/PerformanceChart.astro';
+import PokerTabs from '../../components/portal/PokerTabs.astro';
+import { requireMember } from '../../lib/access';
+import { buildChart } from '../../lib/chart';
+import { applyFilters, combine, combinedStats, filterOptions, readFilters, type AkRow } from '../../lib/combined';
+import { formatCents } from '../../lib/money';
+import { formatHours, formatLabel, type LogRow } from '../../lib/poker-log';
+import { computeStats, formatDate, type ResultRow } from '../../lib/stats';
+
+const access = await requireMember(Astro);
+if (access instanceof Response) return access;
+const supabase = Astro.locals.supabase!;
+
+const [akRes, logRes] = await Promise.all([
+  access.trackingEnabled && !access.isHost ? supabase.rpc('get_my_results') : Promise.resolve({ data: [], error: null }),
+  supabase.rpc('my_log_list'),
+]);
+const loadError = Boolean(akRes.error || logRes.error);
+const all = combine((akRes.data ?? []) as AkRow[], (logRes.data ?? []) as LogRow[]);
+const filters = readFilters(Astro.url.searchParams);
+const rows = applyFilters(all, filters);
+const options = filterOptions(all);
+const stats = combinedStats(rows);
+const asResults: ResultRow[] = rows.map((r) => ({ session_id: r.id, played_on: r.playedOn, stakes: r.stakes, title: r.venue, total_buy_in_cents: r.buyIn, cash_out_cents: r.cashOut, net_cents: r.net }));
+const chartStats = computeStats(asResults);
+const chart = buildChart(chartStats);
+const chartSmall = buildChart(chartStats, 360, 260);
+const tone = (c: bigint) => (c > 0n ? 'gain' : c < 0n ? 'loss' : 'neutral') as 'gain' | 'loss' | 'neutral';
+const filtered = Object.entries(filters).some(([k, v]) => v && !(k === 'source' && v === 'all'));
+---
+
+<PortalLayout title="All results" access={access} current="log">
+  <header>
+    <p class="eyebrow">My Poker Log</p>
+    <h1 class="mt-3 text-4xl sm:text-5xl">All your results</h1>
+    <p class="mt-4 max-w-2xl leading-relaxed text-silver-300">
+      Your AK Cash Club results{!access.trackingEnabled && ' (when tracking is on)'} and your outside games together, with filters. Only you can see this.
+    </p>
+  </header>
+  <PokerTabs current="results" />
+
+  {loadError && <div class="mt-6"><Alert tone="error">We couldn’t load everything just now. Please refresh in a moment.</Alert></div>}
+  {!access.trackingEnabled && !access.isHost && (
+    <div class="mt-6"><Alert tone="info">AK Cash Club games appear here once you <a class="link" href="/account#tracking">turn on performance tracking</a>.</Alert></div>
+  )}
+
+  <form method="get" class="panel mt-6 grid grid-cols-2 gap-4 p-5 sm:grid-cols-3 sm:p-6 lg:grid-cols-6" aria-label="Filters">
+    <div><label for="from" class="label">From</label><input id="from" name="from" type="date" value={filters.from} class="input" /></div>
+    <div><label for="to" class="label">To</label><input id="to" name="to" type="date" value={filters.to} class="input" /></div>
+    <div>
+      <label for="source" class="label">Games</label>
+      <select id="source" name="source" class="input">
+        <option value="all">All</option>
+        <option value="ak" selected={filters.source === 'ak'}>AK Cash Club</option>
+        <option value="outside" selected={filters.source === 'outside'}>Outside games</option>
+      </select>
+    </div>
+    <div>
+      <label for="stakes" class="label">Stakes</label>
+      <select id="stakes" name="stakes" class="input">
+        <option value="">Any</option>
+        {options.stakes.map((s) => <option value={s} selected={filters.stakes === s}>{s}</option>)}
+      </select>
+    </div>
+    <div>
+      <label for="venue" class="label">Venue</label>
+      <select id="venue" name="venue" class="input">
+        <option value="">Any</option>
+        {options.venues.map((v) => <option value={v} selected={filters.venue === v}>{v}</option>)}
+      </select>
+    </div>
+    <div>
+      <label for="format" class="label">Format</label>
+      <select id="format" name="format" class="input">
+        <option value="">Any</option>
+        <option value="cash" selected={filters.format === 'cash'}>Cash game</option>
+        <option value="tournament" selected={filters.format === 'tournament'}>Tournament</option>
+        <option value="other" selected={filters.format === 'other'}>Other</option>
+      </select>
+    </div>
+    <div class="col-span-2 flex flex-wrap gap-3 sm:col-span-3 lg:col-span-6">
+      <button type="submit" class="btn-primary">Apply filters</button>
+      {filtered && <a href="/poker-log/results" class="btn-ghost">Clear</a>}
+    </div>
+  </form>
+
+  {rows.length === 0 ? (
+    <section class="panel mt-4 p-8 text-center sm:p-12">
+      <h2 class="text-2xl">{all.length ? 'No games match these filters.' : 'Nothing here yet.'}</h2>
+      {!all.length && <p class="mx-auto mt-3 max-w-md text-silver-300"><a class="link" href="/poker-log#add">Add an outside game</a>, or play at AK Cash Club with tracking on.</p>}
+    </section>
+  ) : (
+    <>
+      <section aria-label="Summary" class="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div class="col-span-2 lg:col-span-1"><StatTile large label="Net result" value={formatCents(stats.lifetimeNet, { signed: true })} tone={tone(stats.lifetimeNet)} detail={`${stats.sessions} session${stats.sessions === 1 ? '' : 's'} · ${stats.winningSessions} up, ${stats.losingSessions} down`} /></div>
+        <StatTile label="AK Cash Club" value={formatCents(stats.bySource.ak.net, { signed: true })} tone={tone(stats.bySource.ak.net)} detail={`${stats.bySource.ak.sessions} session${stats.bySource.ak.sessions === 1 ? '' : 's'}`} />
+        <StatTile label="Outside games" value={formatCents(stats.bySource.outside.net, { signed: true })} tone={tone(stats.bySource.outside.net)} detail={`${stats.bySource.outside.sessions} session${stats.bySource.outside.sessions === 1 ? '' : 's'}`} />
+        <StatTile label="Hourly (outside, timed)" value={stats.hourly === null ? '—' : `${formatCents(stats.hourly, { signed: true })}/h`} tone={stats.hourly === null ? 'neutral' : tone(stats.hourly)} detail={stats.minutesPlayed ? `Over ${formatHours(stats.minutesPlayed)}` : 'Add hours to outside games'} />
+      </section>
+
+      {chart && (
+        <section class="panel mt-4 p-5 sm:p-8" aria-labelledby="chart-title">
+          <h2 id="chart-title" class="text-2xl sm:text-3xl">Over time</h2>
+          <div class="mt-6 hidden sm:block"><PerformanceChart model={chart} uid="all-lg" /></div>
+          {chartSmall && <div class="mt-5 sm:hidden"><PerformanceChart model={chartSmall} uid="all-sm" /></div>}
+        </section>
+      )}
+
+      <section class="panel mt-4 overflow-hidden" aria-labelledby="list-title">
+        <h2 id="list-title" class="px-5 pt-6 text-2xl sm:px-8">Games</h2>
+        <ul class="mt-4 divide-y divide-silver-100/10 border-t border-silver-100/10">
+          {rows.map((r) => {
+            const inner = (
+              <>
+                <div>
+                  <p class="text-silver-100">{formatDate(r.playedOn)} · {r.venue}</p>
+                  <p class="mt-0.5 text-xs text-silver-400">{r.source === 'ak' ? 'Recorded by the host' : formatLabel(r.format)}{r.stakes && ` · ${r.stakes}`}{r.minutes && ` · ${formatHours(r.minutes)}`}</p>
+                  <p class="mt-1 text-xs tabular-nums text-silver-400">In {formatCents(r.buyIn)} · Out {formatCents(r.cashOut)}</p>
+                </div>
+                <p class:list={['font-serif text-2xl tabular-nums', tone(r.net) === 'neutral' ? 'text-silver-100' : tone(r.net)]}>{formatCents(r.net, { signed: true })}</p>
+              </>
+            );
+            return (
+              <li>
+                {r.href
+                  ? <a href={r.href} class="flex items-start justify-between gap-4 px-5 py-4 transition-colors hover:bg-silver-100/[0.03] sm:px-8">{inner}</a>
+                  : <div class="flex items-start justify-between gap-4 px-5 py-4 sm:px-8">{inner}</div>}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    </>
+  )}
+</PortalLayout>

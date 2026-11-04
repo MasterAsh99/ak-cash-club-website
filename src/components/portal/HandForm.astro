@@ -1,0 +1,92 @@
+---
+import Alert from './Alert.astro';
+import Field from './Field.astro';
+import { POSITIONS, RANKS, SUITS, cardLabel, type HandValues } from '../../lib/cards';
+
+interface Props { values: HandValues; errors: Record<string, string>; isEdit: boolean; formError?: string }
+const { values, errors, isEdit, formError = '' } = Astro.props;
+const slots = [
+  { name: 'hole_0', label: 'Card 1', value: values.hole[0] },
+  { name: 'hole_1', label: 'Card 2', value: values.hole[1] },
+];
+const board = [
+  { name: 'board_0', label: 'Flop 1' }, { name: 'board_1', label: 'Flop 2' }, { name: 'board_2', label: 'Flop 3' },
+  { name: 'board_3', label: 'Turn' }, { name: 'board_4', label: 'River' },
+].map((b, i) => ({ ...b, value: values.board[i] }));
+---
+
+<form method="post" class="grid gap-5 sm:grid-cols-2" novalidate data-hand-form>
+  <input type="hidden" name="action" value="save" />
+  {isEdit && <input type="hidden" name="id" value={values.id} />}
+  {formError && <div class="sm:col-span-2"><Alert tone="error">{formError}</Alert></div>}
+  <div class="sm:col-span-2"><Field label="Title" name="title" value={values.title} required maxlength={80} placeholder="e.g. Hero call on a scary river" error={errors.title} /></div>
+  <Field label="Date" name="played_on" type="date" value={values.played_on} required error={errors.played_on} />
+  <Field label="Stakes (optional)" name="stakes" value={values.stakes} maxlength={40} placeholder="$1/$2" />
+  <div>
+    <label for="position" class="label">Your position (optional)</label>
+    <select id="position" name="position" class="input">
+      <option value="">—</option>
+      {POSITIONS.map((p) => <option value={p} selected={values.position === p}>{p}</option>)}
+    </select>
+    {errors.position && <p class="field-error">{errors.position}</p>}
+  </div>
+
+  <fieldset class="sm:col-span-2">
+    <legend class="label">Cards (optional)</legend>
+    <div class="mt-2 flex flex-wrap items-end gap-x-6 gap-y-4">
+      <div>
+        <p class="hint !mt-0 mb-2">Your hand</p>
+        <div class="flex gap-2">
+          {slots.map((s) => (
+            <select name={s.name} aria-label={`Your hand, ${s.label}`} class="input card-select w-[4.75rem] px-2 text-center">
+              <option value="">–</option>
+              {SUITS.map((suit) => (
+                <optgroup label={suit.name[0]!.toUpperCase() + suit.name.slice(1)}>
+                  {RANKS.map((r) => { const c = `${r}${suit.code}`; return <option value={c} selected={s.value === c}>{cardLabel(c)}</option>; })}
+                </optgroup>
+              ))}
+            </select>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p class="hint !mt-0 mb-2">Board: flop, turn, river</p>
+        <div class="flex flex-wrap gap-2">
+          {board.map((s, i) => (
+            <select name={s.name} aria-label={`Board, ${s.label}`} class:list={['input card-select w-[4.75rem] px-2 text-center', i === 3 && 'ml-2']}>
+              <option value="">–</option>
+              {SUITS.map((suit) => (
+                <optgroup label={suit.name[0]!.toUpperCase() + suit.name.slice(1)}>
+                  {RANKS.map((r) => { const c = `${r}${suit.code}`; return <option value={c} selected={s.value === c}>{cardLabel(c)}</option>; })}
+                </optgroup>
+              ))}
+            </select>
+          ))}
+        </div>
+      </div>
+    </div>
+    {errors.cards && <p class="field-error">{errors.cards}</p>}
+  </fieldset>
+
+  <div class="sm:col-span-2">
+    <label for="notes" class="label">Notes</label>
+    <textarea id="notes" name="notes" rows="5" maxlength="2000" class="input" placeholder="Action street by street, reads, what you’d do differently…">{values.notes}</textarea>
+  </div>
+  <div class="sm:col-span-2"><button type="submit" class="btn-primary">{isEdit ? 'Save changes' : 'Save hand'}</button></div>
+</form>
+
+<script is:inline>
+  // Card picker: colour red suits, and grey out cards already used elsewhere in the hand.
+  for (const form of document.querySelectorAll('[data-hand-form]')) {
+    const selects = [...form.querySelectorAll('select.card-select')];
+    const paint = () => {
+      const used = new Set(selects.map((s) => s.value).filter(Boolean));
+      for (const s of selects) {
+        s.style.color = /[hd]$/.test(s.value) ? '#e8838f' : '';
+        for (const o of s.options) if (o.value) o.disabled = used.has(o.value) && o.value !== s.value;
+      }
+    };
+    selects.forEach((s) => s.addEventListener('change', paint));
+    paint();
+  }
+</script>
