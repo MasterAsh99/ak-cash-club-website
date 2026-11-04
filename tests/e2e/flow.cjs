@@ -574,6 +574,98 @@ async function login(page, email, password, next = '') {
     assert.match(await bad.textContent('main'), /isn’t valid/);
   });
 
+  // ---- game nights ----
+  let gameId = '';
+  const b = await bobCtx.newPage();
+  b.on('pageerror', (e) => errors.push(e.message));
+  const inDays = (n) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() + n * 86_400_000));
+
+  await step('host opens a game night; members can request seats but never see who else or the address', async () => {
+    await h.goto(`${SITE}/host/games`);
+    await h.fill('#date', inDays(3));
+    await h.fill('#time', '19:30');
+    await h.fill('#stakes', '$1/$2');
+    await h.fill('#seats', '2');
+    await h.fill('#address', '123 Test Lane');
+    await h.fill('#arrival_note', 'Side door');
+    await h.click('#new button[type=submit]');
+    await h.waitForURL(/\/host\/games\/[0-9a-f-]{36}\?notice=created/);
+    gameId = h.url().match(/games\/([0-9a-f-]{36})/)[1];
+
+    await a.goto(`${SITE}/games`);
+    assert.match(await a.textContent('main'), /2 of 2 seats open/);
+    await a.screenshot({ path: `${SHOTS}/24-games-mobile.png`, fullPage: true });
+    await a.click(`form:has(input[value="${gameId}"]) button[type=submit]`);
+    await a.waitForURL(/notice=requested/);
+
+    const c = await (await browser.newContext({ ...mobile })).newPage();
+    await signupAndVerify(c, 'carol@example.com', 'carol', 'third player passphrase');
+    await c.goto(`${SITE}/games/${gameId}`);
+    await c.click('form:has(input[value=request]) button[type=submit]');
+    await c.waitForURL(/notice=requested/);
+
+    await b.goto(`${SITE}/games/${gameId}`);
+    await b.fill('input[name=note]', 'Might be 15 minutes late');
+    await b.click('form:has(input[value=request]) button[type=submit]');
+    await b.waitForURL(/notice=requested/);
+    for (const p of [a, b]) {
+      const text = await p.textContent('main');
+      assert.ok(!/123 Test Lane|alice|bob_99/.test(text.replace(/Signed in as \w+/, '')), 'no address or other players');
+    }
+    assert.equal((await a.goto(`${SITE}/host/games/${gameId}`)).status(), 404, 'host page hidden from players');
+  });
+
+  await step('host confirms with one tap; when a confirmed player cancels, the waitlist moves up', async () => {
+    await h.goto(`${SITE}/host/games/${gameId}`);
+    assert.match(await h.textContent('#requests'), /Might be 15 minutes late/);
+    await h.screenshot({ path: `${SHOTS}/25-host-game-night.png`, fullPage: true });
+    await h.click('#requests li:has-text("alice") button[value=confirmed]');
+    await h.waitForURL(/notice=confirmed/);
+    await h.click('#requests li:has-text("carol") button[value=confirmed]');
+    await h.waitForURL(/notice=confirmed/);
+    assert.equal(await h.isDisabled('#requests li:has-text("bob_99") button[value=confirmed]'), true, 'table full');
+    await h.click('#requests li:has-text("bob_99") button[value=waitlisted]');
+    await h.waitForURL(/notice=waitlisted/);
+
+    await b.goto(`${SITE}/games/${gameId}`);
+    assert.match(await b.textContent('main'), /number 1 on the waitlist/);
+    await a.goto(`${SITE}/dashboard`);
+    assert.match(await a.textContent('main'), /Your next game/);
+    await a.goto(`${SITE}/games/${gameId}`);
+    assert.match(await a.textContent('main'), /Your seat is confirmed/);
+    await a.screenshot({ path: `${SHOTS}/26-game-confirmed-mobile.png`, fullPage: true });
+    await a.check('input[name=confirm_cancel]');
+    await a.click('form:has(input[value=cancel]) button[type=submit]');
+    await a.waitForURL(/notice=cancelled/);
+    await b.goto(`${SITE}/games/${gameId}`);
+    assert.match(await b.textContent('main'), /Your seat is confirmed/);
+  });
+
+  await step('seat emails are sent; the address appears only on game day, only to confirmed players', async () => {
+    await fetch(`${MOCK}/__test/notify-due`, { method: 'POST' });
+    await fetch(`${SITE}/cdn-cgi/handler/scheduled`);
+    let sent = [];
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      sent = await (await fetch(`${MOCK}/__test/resend/sent`)).json();
+      if (sent.some((m) => m.to[0] === 'bob@example.com' && /seat is confirmed/.test(m.subject))) break;
+    }
+    const bobMail = sent.find((m) => m.to[0] === 'bob@example.com' && /seat is confirmed/.test(m.subject));
+    assert.ok(bobMail, 'bob emailed when moved off the waitlist');
+    assert.match(bobMail.text, /moved off the waitlist/);
+    assert.ok(sent.some((m) => m.to[0] === 'alice@example.com' && /seat is confirmed/.test(m.subject)), 'alice emailed on confirm');
+    assert.ok(!sent.some((m) => /123 Test Lane/.test(m.html + m.text)), 'address never emailed');
+
+    await b.goto(`${SITE}/games/${gameId}`);
+    assert.ok(!/123 Test Lane/.test(await b.textContent('main')), 'not before game day');
+    await fetch(`${MOCK}/__test/game-today`, { method: 'POST', body: JSON.stringify({ id: gameId }) });
+    await b.goto(`${SITE}/games/${gameId}`);
+    assert.match(await b.textContent('main'), /123 Test Lane/);
+    await b.screenshot({ path: `${SHOTS}/27-game-day-address.png`, fullPage: true });
+    await a.goto(`${SITE}/games/${gameId}`);
+    assert.ok(!/123 Test Lane/.test(await a.textContent('main')), 'cancelled player cannot see it');
+  });
+
   await step('installable app: manifest, icons, offline page; member pages never cached', async () => {
     const m = await (await fetch(`${SITE}/manifest.webmanifest`)).json();
     assert.equal(m.start_url, '/dashboard');

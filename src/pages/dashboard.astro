@@ -9,6 +9,8 @@ import { readForm, requireMember } from '../lib/access';
 import { buildChart } from '../lib/chart';
 import { formatCents } from '../lib/money';
 import { computeStats, formatDate, type ResultRow } from '../lib/stats';
+import { formatGameTime } from '../lib/games';
+import SeatBadge from '../components/portal/SeatBadge.astro';
 
 const access = await requireMember(Astro);
 if (access instanceof Response) return access;
@@ -34,6 +36,16 @@ if (access.trackingEnabled && !access.isHost && !Astro.cookies.has(NUDGE_COOKIE)
   const { data, error } = await Astro.locals.supabase!.rpc('get_my_notification_prefs');
   const prefs = Array.isArray(data) ? data[0] : data;
   showEmailNudge = !error && !!prefs && !prefs.results_ready;
+}
+
+// The member's next game with an active seat or request.
+type Upcoming = { game_night_id: string; starts_at: string; stakes: string; status: string; my_status: string | null; my_waitlist_position: number | null };
+let nextGame: Upcoming | null = null;
+if (!access.isHost) {
+  const { data: games } = await Astro.locals.supabase!.rpc('list_game_nights');
+  nextGame = ((games ?? []) as Upcoming[]).find(
+    (g) => g.status !== 'cancelled' && ['confirmed', 'waitlisted', 'requested'].includes(g.my_status ?? '') && new Date(g.starts_at) > new Date(),
+  ) ?? null;
 }
 
 let rows: ResultRow[] = [];
@@ -72,6 +84,16 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
   </header>
 
   {notice && <div class="mt-8"><Alert tone="success">{notice}</Alert></div>}
+  {nextGame && (
+    <a href={`/games/${nextGame.game_night_id}`} class="panel mt-8 flex flex-wrap items-center justify-between gap-4 p-5 transition hover:border-steel-300/40 sm:p-6">
+      <span>
+        <span class="eyebrow block">Your next game</span>
+        <span class="mt-2 block text-xl text-silver-50 sm:text-2xl">{formatGameTime(nextGame.starts_at)}</span>
+        <span class="text-sm text-silver-400">{nextGame.stakes}</span>
+      </span>
+      <SeatBadge status={nextGame.my_status as 'confirmed'} position={nextGame.my_waitlist_position} />
+    </a>
+  )}
   {showEmailNudge && (
     <form method="post" class="panel mt-8 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
       <p class="text-sm leading-relaxed text-silver-200">

@@ -1,0 +1,139 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import Alert from '../../components/portal/Alert.astro';
+import SeatBadge from '../../components/portal/SeatBadge.astro';
+import { readForm, requireMember } from '../../lib/access';
+import { friendlyDbError } from '../../lib/errors';
+import { formatGameTime, seatsLeft, torontoDate, type NightStatus, type SeatStatus } from '../../lib/games';
+import { formatDate } from '../../lib/stats';
+import { field } from '../../lib/validation';
+
+const access = await requireMember(Astro);
+if (access instanceof Response) return access;
+const id = Astro.params.id ?? '';
+if (access.isHost) return Astro.redirect(`/host/games/${encodeURIComponent(id)}`);
+if (!/^[0-9a-f-]{36}$/i.test(id)) return new Response(null, { status: 404 });
+const supabase = Astro.locals.supabase!;
+
+let formError = '';
+const form = await readForm(Astro);
+if (form) {
+  const action = form.get('action');
+  if (action === 'request') {
+    const { error } = await supabase.rpc('request_seat', { p_id: id, p_note: field(form, 'note', 200) || null });
+    if (error) formError = friendlyDbError(error);
+    else return Astro.redirect(`/games/${id}?notice=requested`, 303);
+  }
+  if (action === 'cancel') {
+    if (form.get('confirm_cancel') !== 'yes') formError = 'Please tick the box to confirm you’re giving up your spot.';
+    else {
+      const { error } = await supabase.rpc('cancel_my_seat', { p_id: id });
+      if (error) formError = friendlyDbError(error);
+      else return Astro.redirect(`/games/${id}?notice=cancelled`, 303);
+    }
+  }
+}
+
+interface Night {
+  id: string; starts_at: string; game_type: string; stakes: string; seats: number; notes: string | null;
+  status: NightStatus; confirmed_count: number; waitlist_count: number; my_status: SeatStatus | null;
+  my_note: string | null; my_waitlist_position: number | null; address_date: string;
+  address?: string; arrival_note?: string | null;
+}
+const { data, error } = await supabase.rpc('get_game_night', { p_id: id });
+if (error && /game_night_not_found|invalid input syntax/.test(error.message)) return new Response(null, { status: 404 });
+const n = data as Night | null;
+
+const notices: Record<string, string> = {
+  requested: 'Your request is in. The host will confirm it, and we’ll email you when they do (if seat updates are on).',
+  cancelled: 'You’ve given up your spot. Thanks for letting us know.',
+};
+const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
+const started = n ? new Date(n.starts_at) <= new Date() : false;
+const active = n?.my_status === 'requested' || n?.my_status === 'confirmed' || n?.my_status === 'waitlisted';
+const canRequest = n && n.status === 'open' && !started && (!n.my_status || n.my_status === 'cancelled');
+const isGameDay = n ? torontoDate(new Date()) >= n.address_date : false;
+---
+
+<PortalLayout title="Game night" access={access} current="games">
+  <a href="/games" class="text-sm text-silver-400 hover:text-silver-100">← All game nights</a>
+  {notice && <div class="mt-6"><Alert tone="success">{notice}</Alert></div>}
+  {formError && <div class="mt-6"><Alert tone="error">{formError}</Alert></div>}
+  {error && !n && <div class="mt-6"><Alert tone="error">We couldn’t load this game just now. Please refresh in a moment.</Alert></div>}
+
+  {n && (
+    <>
+      <header class="mt-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p class="eyebrow">{n.stakes} · {n.game_type}</p>
+          <h1 class="mt-3 text-4xl sm:text-5xl">{formatGameTime(n.starts_at)}</h1>
+        </div>
+        <SeatBadge status={n.my_status} position={n.my_waitlist_position} />
+      </header>
+
+      {n.status === 'cancelled' && <div class="mt-8"><Alert tone="error">This game has been cancelled by the host.</Alert></div>}
+
+      <div class="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <section class="panel p-6 sm:p-9" aria-labelledby="seat-title">
+          <h2 id="seat-title" class="text-2xl sm:text-3xl">Your seat</h2>
+          <p class="mt-4 text-sm text-silver-300">
+            {seatsLeft(n) > 0 ? `${seatsLeft(n)} of ${n.seats} seats open.` : `The table is full${n.waitlist_count ? ` and ${n.waitlist_count} ${n.waitlist_count === 1 ? 'player is' : 'players are'} on the waitlist` : ''}.`}
+          </p>
+
+          {n.my_status === 'requested' && <p class="mt-4 leading-relaxed text-silver-200">You’ve asked for a seat. The host will confirm it or add you to the waitlist.</p>}
+          {n.my_status === 'confirmed' && <p class="mt-4 leading-relaxed text-silver-200">Your seat is confirmed. See you at the table.</p>}
+          {n.my_status === 'waitlisted' && <p class="mt-4 leading-relaxed text-silver-200">You’re number {n.my_waitlist_position} on the waitlist. If a seat opens up, you’ll be confirmed automatically and emailed.</p>}
+          {n.my_status === 'declined' && <p class="mt-4 leading-relaxed text-silver-200">The host wasn’t able to offer you a seat this time. We hope to see you at a future game.</p>}
+          {n.my_note && active && <p class="mt-3 text-sm text-silver-400">Your note to the host: “{n.my_note}”</p>}
+
+          {canRequest && (
+            <form method="post" class="mt-6 grid gap-4" novalidate>
+              <input type="hidden" name="action" value="request" />
+              <label class="grid gap-2">
+                <span class="label">Note for the host (optional)</span>
+                <input name="note" maxlength="200" class="input" placeholder="e.g. Might be 15 minutes late" />
+              </label>
+              <div><button type="submit" class="btn-primary">Request a seat</button></div>
+            </form>
+          )}
+
+          {active && !started && n.status !== 'cancelled' && (
+            <form method="post" class="mt-8 border-t border-silver-100/10 pt-6" novalidate>
+              <input type="hidden" name="action" value="cancel" />
+              <label class="flex items-start gap-3 text-sm text-silver-200">
+                <input type="checkbox" name="confirm_cancel" value="yes" class="mt-1 size-4 accent-[#d3707f]" />
+                I can’t make it. Give my {n.my_status === 'confirmed' ? 'seat' : 'spot'} to someone else.
+              </label>
+              <button type="submit" class="btn-ghost mt-4">Cancel my {n.my_status === 'confirmed' ? 'seat' : 'request'}</button>
+            </form>
+          )}
+        </section>
+
+        <section class="panel p-6 sm:p-9" aria-labelledby="where-title">
+          <h2 id="where-title" class="text-2xl sm:text-3xl">Where</h2>
+          {n.address ? (
+            <div class="mt-4">
+              <p class="text-lg text-silver-50">{n.address}</p>
+              {n.arrival_note && <p class="mt-2 text-sm text-silver-300">{n.arrival_note}</p>}
+              <p class="mt-4 text-xs text-silver-500">Please keep the address private.</p>
+            </div>
+          ) : (
+            <p class="mt-4 text-sm leading-relaxed text-silver-300">
+              {n.my_status === 'confirmed'
+                ? isGameDay ? 'The address isn’t available right now.' : `The address will appear here on ${formatDate(n.address_date)}, the day of the game.`
+                : 'The address is shared with confirmed players on the day of the game.'}
+            </p>
+          )}
+          {n.notes && (
+            <>
+              <h3 class="label mt-8">From the host</h3>
+              <p class="mt-2 text-sm leading-relaxed text-silver-300">{n.notes}</p>
+            </>
+          )}
+        </section>
+      </div>
+    </>
+  )}
+</PortalLayout>

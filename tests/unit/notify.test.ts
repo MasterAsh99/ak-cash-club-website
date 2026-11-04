@@ -35,8 +35,8 @@ describe('renderNotification', () => {
     expect(e.html).toContain('&lt;b&gt;x&lt;/b&gt;');
   });
 
-  it('returns null for kinds without a template yet', () => {
-    expect(renderNotification(n({ kind: 'game_reminder' }), 'https://akcashclub.com')).toBeNull();
+  it('returns null for unknown seat events', () => {
+    expect(renderNotification(n({ kind: 'seat_update', payload: { event: 'bogus', starts_local: '2026-11-06T19:30' } }), 'https://akcashclub.com')).toBeNull();
   });
 });
 
@@ -93,5 +93,31 @@ describe('processOutbox', () => {
       { p_secret: env.NOTIFY_SECRET, p_id: '11111111-1111-4111-8111-111111111111', p_error: null },
       { p_secret: env.NOTIFY_SECRET, p_id: '22222222-2222-4222-8222-222222222222', p_error: expect.stringMatching(/^HTTP 429/) },
     ]);
+  });
+});
+
+describe('game emails', () => {
+  const g = (kind: ClaimedNotification['kind'], event: string) =>
+    renderNotification(n({ kind, payload: { event, starts_local: '2026-11-06T19:30', stakes: '$1/$2', game_night_id: '33333333-3333-4333-8333-333333333333' } }), 'https://akcashclub.com')!;
+
+  it.each([
+    ['game_announcement', 'new', /New game night: Friday, November 6 at 7:30 p\.m\./, 'k=game_announcements'],
+    ['seat_update', 'confirmed', /Your seat is confirmed for Friday, November 6/, 'k=seat_updates'],
+    ['seat_update', 'promoted', /Your seat is confirmed/, 'k=seat_updates'],
+    ['seat_update', 'waitlisted', /waitlist/, 'k=seat_updates'],
+    ['seat_update', 'declined', /About your seat request/, 'k=seat_updates'],
+    ['seat_update', 'changed', /Game time changed/, 'k=seat_updates'],
+    ['seat_update', 'cancelled', /Game cancelled/, 'k=seat_updates'],
+    ['game_reminder', 'reminder', /Reminder: you’re playing Friday/, 'k=game_reminders'],
+  ] as const)('%s / %s', (kind, event, subject, pref) => {
+    const e = g(kind, event);
+    expect(e.subject).toMatch(subject);
+    expect(e.unsubscribeUrl).toContain(pref);
+    expect(e.html).not.toMatch(/address:|St\b/);
+  });
+
+  it('links to the game page', () => {
+    expect(g('seat_update', 'confirmed').html).toContain('https://akcashclub.com/games/33333333-3333-4333-8333-333333333333');
+    expect(g('seat_update', 'promoted').text).toContain('moved off the waitlist');
   });
 });

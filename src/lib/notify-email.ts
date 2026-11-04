@@ -6,6 +6,7 @@
  * say something happened and link to the member area, where the details are
  * shown after logging in.
  */
+import { formatLocalGameTime } from './games';
 import { formatDate } from './stats';
 
 export type NotificationKind = 'results_ready' | 'game_announcement' | 'seat_update' | 'game_reminder';
@@ -63,6 +64,15 @@ function str(v: unknown, max = 80): string {
   return typeof v === 'string' ? v.slice(0, max) : '';
 }
 
+function gameWhen(p: Record<string, unknown>): string {
+  const local = str(p.starts_local, 16);
+  return local ? formatLocalGameTime(local) : '';
+}
+function gamePath(p: Record<string, unknown>): string {
+  const id = str(p.game_night_id, 36);
+  return /^[0-9a-f-]{36}$/.test(id) ? `/games/${id}` : '/games';
+}
+
 interface Content {
   subject: string;
   preheader: string;
@@ -92,8 +102,105 @@ function content(n: ClaimedNotification): Content | null {
         why: 'You’re receiving this because you turned on “Your result is ready” emails.',
       };
     }
+    case 'game_announcement': {
+      const when = gameWhen(p);
+      if (!when) return null;
+      return {
+        subject: `New game night: ${when}`,
+        preheader: `Seats are open for ${when}.`,
+        heading: 'A new game night is open',
+        paragraphs: [
+          `Hi ${n.username}, the host has opened ${str(p.stakes, 40) ? `a ${str(p.stakes, 40)}` : 'a'} game for ${when}.`,
+          'Seats are limited and confirmed by the host. Request yours from the game page.',
+        ],
+        button: { label: 'Request a seat', path: gamePath(p) },
+        why: 'You’re receiving this because you turned on “New game nights” emails.',
+      };
+    }
+    case 'seat_update': {
+      const when = gameWhen(p);
+      if (!when) return null;
+      const why = 'You’re receiving this because you asked for a seat and have “Seat updates” turned on.';
+      const button = { label: 'View the game', path: gamePath(p) };
+      switch (str(p.event, 20)) {
+        case 'confirmed':
+        case 'promoted':
+          return {
+            subject: `Your seat is confirmed for ${when}`,
+            preheader: 'See you at the table.',
+            heading: 'Your seat is confirmed',
+            paragraphs: [
+              p.event === 'promoted'
+                ? `Good news, ${n.username}: a seat opened up and you’ve moved off the waitlist for ${when}.`
+                : `Hi ${n.username}, your seat for ${when} is confirmed.`,
+              'The address appears on the game page on the day of the game. If your plans change, please cancel from the game page so someone on the waitlist can take your seat.',
+            ],
+            button, why,
+          };
+        case 'waitlisted':
+          return {
+            subject: `You’re on the waitlist for ${when}`,
+            preheader: 'We’ll email you if a seat opens up.',
+            heading: 'You’re on the waitlist',
+            paragraphs: [
+              `Hi ${n.username}, the table for ${when} is full for now, so you’re on the waitlist.`,
+              'If a seat opens up you’ll be moved in automatically and we’ll email you.',
+            ],
+            button, why,
+          };
+        case 'declined':
+          return {
+            subject: `About your seat request for ${when}`,
+            preheader: 'The host couldn’t offer you a seat this time.',
+            heading: 'Not this time',
+            paragraphs: [
+              `Hi ${n.username}, the host couldn’t offer you a seat for ${when}.`,
+              'We hope to see you at a future game.',
+            ],
+            button: { label: 'See upcoming games', path: '/games' }, why,
+          };
+        case 'changed':
+          return {
+            subject: `Game time changed: now ${when}`,
+            preheader: 'The host has changed the game time.',
+            heading: 'The game time has changed',
+            paragraphs: [
+              `Hi ${n.username}, the game you asked for a seat at now starts ${when}.`,
+              'If you can no longer make it, please cancel from the game page.',
+            ],
+            button, why,
+          };
+        case 'cancelled':
+          return {
+            subject: `Game cancelled: ${when}`,
+            preheader: 'The host has cancelled this game.',
+            heading: 'This game is cancelled',
+            paragraphs: [
+              `Hi ${n.username}, the host has cancelled the game on ${when}. Sorry about that.`,
+              'Keep an eye on the games page for the next one.',
+            ],
+            button: { label: 'See upcoming games', path: '/games' }, why,
+          };
+        default:
+          return null;
+      }
+    }
+    case 'game_reminder': {
+      const when = gameWhen(p);
+      if (!when) return null;
+      return {
+        subject: `Reminder: you’re playing ${when}`,
+        preheader: 'Your seat is confirmed. The address is on the game page today.',
+        heading: 'See you tomorrow',
+        paragraphs: [
+          `Hi ${n.username}, a reminder that your seat is confirmed for ${when}.`,
+          'The address will appear on the game page on the day of the game. If you can no longer make it, please cancel there so someone on the waitlist can take your seat.',
+        ],
+        button: { label: 'View the game', path: gamePath(p) },
+        why: 'You’re receiving this because you have a confirmed seat and “Game-day reminders” turned on.',
+      };
+    }
     default:
-      // Other kinds are added together with the features that send them.
       return null;
   }
 }

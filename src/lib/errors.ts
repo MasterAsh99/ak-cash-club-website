@@ -5,6 +5,23 @@
  */
 
 const DB_MESSAGES: Record<string, string> = {
+  // Game nights
+  game_night_not_found: 'That game night couldn’t be found.',
+  requests_closed: 'Seat requests for this game are closed.',
+  already_requested: 'You’ve already asked for a seat at this game.',
+  request_declined: 'The host wasn’t able to offer you a seat at this game.',
+  no_active_request: 'You don’t have an active seat request for this game.',
+  game_started: 'This game has already started.',
+  host_cannot_request_seat: 'The host doesn’t need to request a seat.',
+  note_too_long: 'Please keep your note to 200 characters.',
+  game_full: 'The table is full. Waitlist this player, or add a seat first.',
+  seats_below_confirmed: 'There are already more confirmed players than that. Free some seats first.',
+  game_night_cancelled: 'This game night has been cancelled.',
+  request_cancelled: 'The player has cancelled this request.',
+  request_not_found: 'That seat request couldn’t be found.',
+  start_in_past: 'The start time must be in the future.',
+  invalid_start: 'Please choose a valid date and start time (within the next year).',
+  address_required: 'Please enter the address.',
   username_invalid: 'That username isn’t allowed. Use 3–20 letters, numbers, and . _ -',
   username_reserved: 'That username is reserved. Please choose another.',
   username_blocked: 'Please choose a different username.',
