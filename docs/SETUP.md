@@ -30,13 +30,14 @@ a domain you’ve verified. A personal Gmail account isn’t needed or recommend
 ## 1. Buy a domain (Cloudflare)
 
 1. Cloudflare dashboard → **Domain Registration → Register Domains**.
-2. Pick a name (e.g. `akcashclub.ca` or `.com`) and complete the purchase.
+2. Pick a name (the club uses `akcashclub.com`) and complete the purchase.
 3. *(Optional, recommended)* Point the website at it: **Workers & Pages →
    ak-cash-club-website → Settings → Domains & Routes → Add → Custom domain**.
    If you do, use that address everywhere this guide says “your site address”, and
    update `site` in `astro.config.mjs` and `PUBLIC_SITE_URL` in `wrangler.jsonc`.
 
-Until then, your site address is `https://ak-cash-club-website.aaronkara99.workers.dev`.
+The club’s address is **`https://akcashclub.com`** (with `www.` redirecting to it). The original
+`https://ak-cash-club-website.aaronkara99.workers.dev` address keeps working too.
 
 ---
 
@@ -57,9 +58,9 @@ Until then, your site address is `https://ak-cash-club-website.aaronkara99.worke
 ### Authentication settings
 
 **Authentication → URL Configuration**
-- **Site URL:** your site address, e.g. `https://ak-cash-club-website.aaronkara99.workers.dev`
-- **Redirect URLs:** add `https://ak-cash-club-website.aaronkara99.workers.dev/**`
-  (and `https://yourdomain/**` if you add a custom domain). The `**` allows the
+- **Site URL:** `https://akcashclub.com`
+- **Redirect URLs:** add `https://akcashclub.com/**` and
+  `https://ak-cash-club-website.aaronkara99.workers.dev/**`. The `**` allows the
   `?flow=…` marker the site adds to email links.
 
 **Authentication → Sign In / Providers → Email**
@@ -107,7 +108,7 @@ The links in these templates use `{{ .SiteURL }}/auth/confirm?token_hash=…`, s
 ## 3. Set up email sending (Resend)
 
 1. Sign up at resend.com.
-2. **Domains → Add Domain.** Use a subdomain of your domain, e.g. `mail.akcashclub.ca`.
+2. **Domains → Add Domain.** Use a subdomain of your domain, e.g. `mail.akcashclub.com`.
 3. Add the DNS records Resend shows (SPF, DKIM, and the MX record) in **Cloudflare → your
    domain → DNS → Records**. Resend can add them for you automatically if you sign in to
    Cloudflare when prompted.
@@ -119,7 +120,7 @@ The links in these templates use `{{ .SiteURL }}/auth/confirm?token_hash=…`, s
 
    | Field | Value |
    | --- | --- |
-   | Sender email | `no-reply@mail.akcashclub.ca` (your verified domain) |
+   | Sender email | `no-reply@mail.akcashclub.com` (your verified domain) |
    | Sender name | `AK Cash Club` |
    | Host | `smtp.resend.com` |
    | Port | `465` |
