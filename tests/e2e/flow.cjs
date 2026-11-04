@@ -240,6 +240,64 @@ async function login(page, email, password, next = '') {
     await h.screenshot({ path: `${SHOTS}/09-host-players.png` });
   });
 
+  await step('host records expenses (per game and general) with exact totals', async () => {
+    await h.goto(`${SITE}/host/expenses`);
+    await h.fill('#spent_on', '2026-10-30');
+    await h.selectOption('#category', 'food');
+    await h.fill('#description', 'Pizza and pop for Friday');
+    await h.fill('#amount', '64.50');
+    await h.selectOption('#session_id', { label: 'Oct 30, 2026 · Friday game · $1/$2' });
+    await h.click('main button[value=save]');
+    await h.waitForURL(/notice=added/);
+    await h.fill('#spent_on', '2026-10-20');
+    await h.selectOption('#category', 'cards');
+    await h.fill('#description', 'Two KEM decks');
+    await h.fill('#amount', '108.99');
+    await h.click('main button[value=save]');
+    await h.waitForURL(/notice=added/);
+    const body = (await h.innerText('main')).replace(/\s+/g, ' ');
+    assert.match(body, /Total spent · 2026 \$173\.49/i);
+    assert.match(body, /Not linked to a game \$108\.99/i);
+    await h.screenshot({ path: `${SHOTS}/15-host-expenses.png`, fullPage: true });
+  });
+
+  await step('expense form rejects bad input and edits need a reason', async () => {
+    await h.goto(`${SITE}/host/expenses`);
+    await h.selectOption('#category', 'food');
+    await h.fill('#description', 'x');
+    await h.fill('#amount', '-5');
+    await h.click('main button[value=save]');
+    const body = await h.textContent('main');
+    assert.match(body, /Describe what it was for/);
+    await h.click('tr:has-text("Two KEM decks") a');
+    await h.fill('#amount', '110.00');
+    await h.click('main button[value=save]');
+    assert.match(await h.textContent('main'), /Give a short reason/);
+    await h.fill('#reason', 'Receipt included tax');
+    await h.click('main button[value=save]');
+    await h.waitForURL(/notice=updated/);
+    await h.goto(`${SITE}/host/audit`);
+    assert.match((await h.innerText('main')).replace(/\s+/g, ' '), /amount: \$108\.99 → \$110\.00/);
+  });
+
+  await step('the game page shows its expenses', async () => {
+    await h.goto(`${SITE}/host`);
+    await h.click('a:has-text("Oct 30, 2026")');
+    const body = (await h.innerText('main')).replace(/\s+/g, ' ');
+    assert.match(body, /Expenses for this game Total \$64\.50/);
+  });
+
+  await step('players cannot see or reach expenses', async () => {
+    const r = await a.goto(`${SITE}/host/expenses`);
+    assert.equal(r.status(), 404);
+    const token = await accessToken(alice);
+    const res = await fetch(`${MOCK}/rest/v1/rpc/host_list_expenses`, {
+      method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: '{}',
+    });
+    assert.equal(res.status, 403);
+    assert.match(await res.text(), /not_authorized/);
+  });
+
   await step('player sees only their own results, stats and chart', async () => {
     await a.goto(`${SITE}/dashboard`);
     const body = await a.textContent('main');

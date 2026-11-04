@@ -136,7 +136,7 @@ analytics, for example), you'll need to allow that domain in the CSP.
 │       ├── auth/confirm     Landing page for every emailed link
 │       ├── dashboard        Player dashboard
 │       ├── account          Username, tracking consent, password, email, deletion
-│       └── host/            Host-only: sessions, players, audit log, two-factor
+│       └── host/            Host-only: sessions, players, expenses, audit log, two-factor
 ├── supabase/
 │   ├── migrations/          Database tables, security rules and functions
 │   ├── templates/           Branded verification / reset / email-change emails

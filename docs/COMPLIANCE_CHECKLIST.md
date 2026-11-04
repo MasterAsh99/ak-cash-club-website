@@ -26,6 +26,10 @@ occupiers, people managing the place, and people who help them.
 - [ ] **Complimentary food and non-alcoholic drinks.** Confirm they are paid for by the
       host personally and are not funded by players directly or indirectly (e.g. from a
       drop or a “tip” jar tied to play).
+- [ ] **Expense tracker.** The host-only Expenses page records what the host spends
+      (food, non-alcoholic drinks, cards, equipment). Keep it to money you pay
+      yourself. If expenses are ever covered by money collected from players, raise
+      that with your lawyer first.
 - [ ] **Dealers or helpers.** If anyone is paid, or tipped from the game, ask how that
       affects “kept for gain” and “keeper”.
 - [ ] **The member area creates records.** Session results, buy-ins and the permanent
