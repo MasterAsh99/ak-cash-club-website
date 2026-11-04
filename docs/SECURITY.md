@@ -34,6 +34,8 @@
 | Host expenses | `host_expenses` is readable only with `private.is_host_mfa()`; writes go through `host_save_expense` / `host_delete_expense` (host + MFA, reason required to edit or delete). Players get an empty result or “permission denied”. |
 | My Poker Log | `player_poker_log` rows are readable only by their owner (`player_id = auth.uid()`). There's deliberately no host clause. Writes go through `my_log_save` / `my_log_delete`, which only touch the caller's rows and refuse entries naming AK Cash Club. Deleted with the account. |
 | Payment tracking | `buy_in_method`, `payout_method` and `payout_paid` on `session_results` are excluded from players' column grants. They're changed only by `host_update_payments` (host + MFA), and the changes are audited. |
+| Notification emails | Queued only by database triggers into `private.notification_outbox` (no API access). Sending runs in the Worker’s scheduled job: `claim_notifications` / `complete_notification` are callable with the publishable key but refuse without `NOTIFY_SECRET`, whose SHA-256 hash is the only copy stored (`private.app_settings`). Preferences and unsubscribe tokens are reachable only through `get_my_notification_prefs` / `set_my_notification_prefs` (own row) and `unsubscribe_with_token` (64-hex token, rate-limited page, POST to confirm). Preferences, tracking and the result itself are re-checked at send time. Emails contain no amounts or other players. |
+| Installable app | `/sw.js` never stores pages (member pages always come from the network); it caches only fingerprinted build files, brand images and the offline page. |
 | Audit trail | Triggers write every insert/update/delete of sessions, results, adjustments and consent to `audit_log` with actor id, time, reason, and before/after values. No role can modify or delete audit rows. |
 | XSS | Astro escapes all output; strict Content-Security-Policy; no user HTML is rendered. |
 | SQL injection | No SQL is built in the app; all access is parameterised PostgREST/RPC calls. |
@@ -45,6 +47,11 @@
 - `tests/db/security.test.ts` runs the **real migration** in Postgres (PGlite) with
   Supabase’s roles and default privileges, then acts as anonymous visitors, players and
   the host, including direct table writes and direct function calls.
+- `tests/db/notifications.test.ts` covers email preferences, the outbox secret, send-time
+  re-checks, unsubscribe tokens, and checks the full list of functions anonymous visitors
+  can run.
+- `tests/unit/notify.test.ts` covers the email content (no amounts, escaping, links) and the
+  Resend sender against a fake API.
 - `tests/unit/lib.test.ts` covers money parsing/formatting, statistics, chart geometry,
   username/password rules, redirect safety and the session form.
 - `tests/e2e/` drives a real browser through the built Worker against a local Supabase

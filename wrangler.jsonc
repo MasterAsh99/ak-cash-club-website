@@ -5,7 +5,7 @@
   // dashboard, host area) are rendered on demand by the Astro server entry.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ak-cash-club-website",
-  "main": "@astrojs/cloudflare/entrypoints/server",
+  "main": "./src/worker/index.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
 
@@ -18,6 +18,9 @@
   "vars": {
     "PUBLIC_SITE_URL": "https://akcashclub.com"
   },
+
+  // Sends queued notification emails and game-day reminders.
+  "triggers": { "crons": ["*/10 * * * *"] },
 
   // Coarse abuse protection for login, sign-up and password-reset forms.
   // (Supabase Auth applies its own limits as well.)

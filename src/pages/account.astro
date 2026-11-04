@@ -9,6 +9,7 @@ import { readForm, requireMember } from '../lib/access';
 import { siteUrl } from '../lib/env';
 import { friendlyAuthError, friendlyDbError } from '../lib/errors';
 import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../lib/ratelimit';
+import { PREF_KEYS, PREF_LABELS, type PrefKey } from '../lib/notify-email';
 import { formatDate } from '../lib/stats';
 import {
   PASSWORD_HELP, USERNAME_HELP, field, isEmail, passwordProblem, rawField, usernameMessage, usernameProblem,
@@ -18,7 +19,7 @@ let access = await requireMember(Astro);
 if (access instanceof Response) return access;
 const supabase = Astro.locals.supabase!;
 
-type Section = 'username' | 'tracking' | 'password' | 'email' | 'delete';
+type Section = 'username' | 'tracking' | 'notifications' | 'password' | 'email' | 'delete';
 const msg: Partial<Record<Section, { tone: 'success' | 'error'; text: string }>> = {};
 const errors: Record<string, string> = {};
 
@@ -74,6 +75,14 @@ if (form) {
         ? { tone: 'error', text: friendlyDbError(error) }
         : { tone: 'success', text: `Removed ${data ?? 0} session${data === 1 ? '' : 's'} from your account.` };
     }
+  }
+
+  if (action === 'notifications' && !access.isHost) {
+    const prefs = Object.fromEntries(PREF_KEYS.map((k) => [k, form.get(k) === 'on']));
+    const { error } = await supabase.rpc('set_my_notification_prefs', { p_prefs: prefs });
+    msg.notifications = error
+      ? { tone: 'error', text: friendlyDbError(error) }
+      : { tone: 'success', text: 'Your email preferences have been saved.' };
   }
 
   if (action === 'password') {
@@ -141,6 +150,14 @@ if (form) {
   const fresh = await requireMember(Astro);
   if (fresh instanceof Response) return fresh;
   access = fresh;
+}
+
+// Email preferences (null if unavailable, e.g. before the database update is applied).
+let prefs: Record<PrefKey, boolean> | null = null;
+if (!access.isHost) {
+  const { data, error } = await supabase.rpc('get_my_notification_prefs');
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!error && row) prefs = Object.fromEntries(PREF_KEYS.map((k) => [k, Boolean(row[k])])) as Record<PrefKey, boolean>;
 }
 
 const notices: Record<string, { tone: 'success' | 'error'; text: string }> = {
@@ -221,6 +238,37 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
       </section>
     )}
 
+
+    <!-- Email notifications -->
+    {prefs && (
+      <section id="notifications" class="panel scroll-mt-28 p-6 sm:p-9" aria-labelledby="notifications-title">
+        <h2 id="notifications-title" class="text-2xl sm:text-3xl">Email notifications</h2>
+        <p class="mt-3 max-w-2xl text-sm leading-relaxed text-silver-400">
+          Choose what we email you about. Emails never include amounts or other players’ names, and every one has an
+          unsubscribe link. Account emails, like password resets, are always sent when you ask for them.
+        </p>
+        <form method="post" class="mt-6" novalidate>
+          <input type="hidden" name="action" value="notifications" />
+          {msg.notifications && <div class="mb-6"><Alert tone={msg.notifications.tone}>{msg.notifications.text}</Alert></div>}
+          <div class="grid gap-3 sm:grid-cols-2">
+            {PREF_KEYS.map((k) => (
+              <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-silver-100/10 bg-midnight-950/50 p-4 transition hover:border-silver-100/25">
+                <input type="checkbox" name={k} checked={prefs![k]} class="mt-1 size-4 shrink-0 accent-[#5f8ad3]" />
+                <span>
+                  <span class="block text-sm font-medium text-silver-100">{PREF_LABELS[k].title}</span>
+                  <span class="mt-1 block text-xs leading-relaxed text-silver-400">
+                    {PREF_LABELS[k].description}
+                    {k === 'results_ready' && !access.trackingEnabled && ' Needs performance tracking turned on.'}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <button type="submit" class="btn-ghost mt-6">Save email preferences</button>
+        </form>
+      </section>
+    )}
+
     {access.isHost && (
       <section class="panel p-6 sm:p-9" aria-labelledby="mfa-title">
         <h2 id="mfa-title" class="text-2xl sm:text-3xl">Two-factor authentication</h2>
@@ -230,6 +278,52 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
         <a href="/host/mfa" class="btn-ghost mt-6">Manage two-factor</a>
       </section>
     )}
+
+
+    <!-- Install as an app -->
+    <section id="install" class="panel scroll-mt-28 p-6 sm:p-9" aria-labelledby="install-title">
+      <div class="flex flex-wrap items-start gap-5">
+        <img src="/brand/app-icon-192.png" width="56" height="56" alt="" class="rounded-2xl ring-1 ring-silver-100/15" />
+        <div class="min-w-0 flex-1">
+          <h2 id="install-title" class="text-2xl sm:text-3xl">Add to your home screen</h2>
+          <p class="mt-3 max-w-2xl text-sm leading-relaxed text-silver-400">
+            Open AK Cash Club like an app, straight to your dashboard. Nothing to download from an app store, and member pages are never stored on your phone.
+          </p>
+        </div>
+      </div>
+      <p data-install-done hidden class="mt-6 text-sm text-silver-200">You’re using the installed app. 👍</p>
+      <div data-install-steps class="mt-6 grid gap-4 text-sm leading-relaxed text-silver-300 sm:grid-cols-2">
+        <div class="rounded-xl border border-silver-100/10 p-4">
+          <p class="font-medium text-silver-100">iPhone or iPad (Safari)</p>
+          <p class="mt-2">Tap the <span class="text-silver-100">Share</span> button, then <span class="text-silver-100">Add to Home Screen</span>. You’ll log in once inside the app.</p>
+        </div>
+        <div class="rounded-xl border border-silver-100/10 p-4">
+          <p class="font-medium text-silver-100">Android (Chrome)</p>
+          <p class="mt-2">Tap the <span class="text-silver-100">⋮</span> menu, then <span class="text-silver-100">Add to Home screen</span> or <span class="text-silver-100">Install app</span>.</p>
+          <button type="button" data-install-button hidden class="btn-primary mt-4">Install the app</button>
+        </div>
+      </div>
+      <script is:inline>
+        (() => {
+          const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+          if (standalone) {
+            document.querySelector('[data-install-done]').hidden = false;
+            document.querySelector('[data-install-steps]').hidden = true;
+            return;
+          }
+          const btn = document.querySelector('[data-install-button]');
+          let deferred = null;
+          addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; btn.hidden = false; });
+          btn.addEventListener('click', async () => {
+            if (!deferred) return;
+            deferred.prompt();
+            await deferred.userChoice.catch(() => null);
+            deferred = null;
+            btn.hidden = true;
+          });
+        })();
+      </script>
+    </section>
 
     <!-- Password -->
     <section class="panel p-6 sm:p-9" aria-labelledby="password-title">

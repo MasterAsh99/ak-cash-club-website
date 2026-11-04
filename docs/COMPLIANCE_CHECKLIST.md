@@ -98,6 +98,18 @@ mechanism* if they count as commercial electronic messages.
       and website).
 - [ ] Never add promotions or marketing to account emails without proper consent.
 
+Notification emails (“Your result is ready”, and later seat updates and game-day
+reminders) are sent only to members, never include amounts or other players, and each
+carries the club name, city, website, why the member is receiving it, an unsubscribe
+link that works without logging in, and a link to email preferences. “Your result is
+ready” and new-game emails are opt-in, with the time of consent recorded.
+
+- [ ] Confirm whether any notification email counts as a commercial electronic message.
+      If so, CASL also requires a mailing address. The site deliberately doesn’t publish
+      one; a PO box or similar would need to be added to the email footer
+      (`src/lib/notify-email.ts`).
+- [ ] Unsubscribe requests take effect immediately (well inside CASL’s 10 business days).
+
 ## F. Platform terms
 
 - [ ] Read the acceptable-use terms of **Supabase**, **Cloudflare** and **Resend**, and

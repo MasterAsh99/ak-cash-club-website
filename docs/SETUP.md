@@ -53,6 +53,7 @@ The club’s address is **`https://akcashclub.com`** (with `www.` redirecting to
    1. `20261103000000_player_portal.sql` (accounts, sessions, results, audit log)
    2. `20261104000000_host_expenses.sql` (host expense tracker)
    3. `20261105000000_poker_log_and_payments.sql` (My Poker Log, payment tracking)
+   4. `20261106000000_notifications.sql` (email preferences, “your result is ready” emails)
 
    When a new file is added in future, run just that file.
    *(Alternative for developers: `npx supabase link` then `npx supabase db push`.)*
@@ -153,6 +154,34 @@ If the login page ever says **“The member area is being set up”**, these two
 missing. Check this page first.
 
 Then merge the pull request. Cloudflare rebuilds and deploys automatically.
+
+### Notification emails (“Your result is ready”)
+
+The site sends these itself, every 10 minutes, through Resend. It needs three more
+settings in the same **Variables and Secrets** page:
+
+1. **Create the outbox secret.** In **Supabase → SQL Editor → New query**, run:
+
+   ```sql
+   select private.rotate_outbox_secret();
+   ```
+
+   Copy the long value it returns (you only see it once; running it again makes a new one
+   and the old one stops working).
+2. **Create a Resend API key for the website:** Resend → **API Keys → Create API Key**,
+   permission **Sending access**, restricted to your verified domain. (A separate key from
+   the one Supabase uses means either can be revoked on its own.)
+3. Add in Cloudflare:
+
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | **Secret** | `NOTIFY_SECRET` | the value from step 1 |
+   | **Secret** | `RESEND_API_KEY` | the key from step 2 |
+   | **Text** (variable) | `EMAIL_FROM` | `AK Cash Club <no-reply@your-verified-domain>`, the same sender address you used for Supabase SMTP in section 3 |
+
+Until all three are set, nothing is sent and emails simply wait (for up to 3 days).
+To check it’s working: **Workers & Pages → ak-cash-club-website → Logs** shows
+`notify: sent 1, failed 0` after an email goes out.
 
 ---
 

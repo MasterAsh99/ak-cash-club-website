@@ -32,6 +32,11 @@ const ogImage = new URL('/og-image.jpg', Astro.site);
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="AK Cash Club" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content={site.name} />
@@ -58,6 +63,13 @@ const ogImage = new URL('/og-image.jpg', Astro.site);
     </a>
 
     <slot />
+
+    <script is:inline>
+      // Lets the site be installed as an app. Pages are never cached (see /sw.js).
+      if ('serviceWorker' in navigator && window.isSecureContext) {
+        addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+      }
+    </script>
 
     <script>
       // Scroll-reveal: fade sections in as they enter the viewport.

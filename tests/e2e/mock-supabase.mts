@@ -19,6 +19,14 @@ import { TestDb } from '../db/harness.ts';
 const PORT = Number(process.env.MOCK_PORT ?? 54321);
 const SECRET = 'e2e-only-secret';
 const db = await TestDb.create();
+// Outbox secret shared with the site via --var NOTIFY_SECRET (see run.mjs).
+export const E2E_NOTIFY_SECRET = 'e2e-notify-secret-0123456789abcdef0123456789abcdef';
+await db.owner(
+  `insert into private.app_settings (key, value) values ('outbox_secret_sha256', encode(sha256(convert_to($1, 'UTF8')), 'hex'))`,
+  [E2E_NOTIFY_SECRET],
+);
+// Emails "sent" through the Resend stand-in.
+const resendSent: Array<Record<string, unknown> & { idempotencyKey: string | undefined; auth: string | undefined }> = [];
 
 type User = { id: string; email: string; password: string; confirmed: boolean; meta: Record<string, unknown>; newEmail?: string };
 type Factor = { id: string; status: 'unverified' | 'verified'; friendly_name: string; userId: string };
@@ -221,6 +229,23 @@ createServer(async (req, res) => {
     if (url.pathname.startsWith('/auth/v1')) return await handleAuth(req, res, url, url.pathname.slice(8));
     if (url.pathname.startsWith('/rest/v1/rpc/')) return await handleRpc(req, res, url.pathname.slice(13));
     if (url.pathname === '/__test/outbox') return send(res, 200, outbox);
+    // Resend stand-in (the site's RESEND_API_URL points here in e2e runs).
+    if (url.pathname === '/__test/resend/emails' && req.method === 'POST') {
+      const auth = req.headers.authorization;
+      if (auth !== 'Bearer re_e2e_key') return send(res, 401, { message: 'bad key' });
+      const key = req.headers['idempotency-key'];
+      const idempotencyKey = Array.isArray(key) ? key[0] : key;
+      if (!resendSent.some((m) => m.idempotencyKey === idempotencyKey)) {
+        resendSent.push({ ...((await body(req)) as Record<string, unknown>), idempotencyKey, auth });
+      }
+      return send(res, 200, { id: randomUUID() });
+    }
+    if (url.pathname === '/__test/resend/sent') return send(res, 200, resendSent);
+    // Skip the 15-minute settle time for queued notification emails.
+    if (url.pathname === '/__test/notify-due' && req.method === 'POST') {
+      await db.owner(`update private.notification_outbox set send_after = now() - interval '1 minute' where status = 'pending'`);
+      return send(res, 200, await db.owner(`select kind, status from private.notification_outbox`));
+    }
     // Simulates Supabase's default template: verify on Supabase's side, then
     // redirect to the site with ?code=. Returns the code.
     if (url.pathname === '/__test/default-link' && req.method === 'POST') {

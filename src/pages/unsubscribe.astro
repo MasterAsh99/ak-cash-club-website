@@ -1,0 +1,71 @@
+---
+/**
+ * Unsubscribe link from notification emails. Works without logging in.
+ * Opening the link only shows a confirm button (so email scanners that
+ * pre-open links can't unsubscribe anyone); pressing it makes the change.
+ */
+export const prerender = false;
+import PortalLayout from '../layouts/PortalLayout.astro';
+import AuthCard from '../components/portal/AuthCard.astro';
+import Alert from '../components/portal/Alert.astro';
+import NotConfigured from '../components/portal/NotConfigured.astro';
+import { readForm } from '../lib/access';
+import { PREF_KEYS, PREF_LABELS, type PrefKey } from '../lib/notify-email';
+import { allowAuthAttempt, RATE_LIMITED_MESSAGE } from '../lib/ratelimit';
+import { field } from '../lib/validation';
+
+const supabase = Astro.locals.supabase;
+const form = await readForm(Astro);
+const token = (form ? field(form, 't', 80) : Astro.url.searchParams.get('t') ?? '').trim();
+const rawKind = (form ? field(form, 'k', 40) : Astro.url.searchParams.get('k') ?? '').trim();
+const wantsAll = form ? field(form, 'scope', 10) === 'all' : false;
+const kind: PrefKey | 'all' =
+  !wantsAll && (PREF_KEYS as readonly string[]).includes(rawKind) ? (rawKind as PrefKey) : 'all';
+const validToken = /^[0-9a-f]{64}$/.test(token);
+const what = kind === 'all' ? 'all AK Cash Club emails' : `“${PREF_LABELS[kind].title}” emails`;
+
+let outcome: 'done' | 'invalid' | 'error' | 'limited' | null = validToken ? null : 'invalid';
+if (form && validToken && supabase) {
+  if (!(await allowAuthAttempt(Astro.request, 'unsubscribe'))) {
+    outcome = 'limited';
+  } else {
+    const { data, error } = await supabase.rpc('unsubscribe_with_token', { p_token: token, p_kind: kind });
+    outcome = error ? 'error' : data ? 'done' : 'invalid';
+  }
+}
+---
+
+<PortalLayout title="Email preferences" current="auth" width="narrow">
+  {!supabase ? <NotConfigured /> : (
+    <AuthCard eyebrow="Email preferences" title={outcome === 'done' ? 'You’re unsubscribed' : 'Unsubscribe'}>
+      {outcome === 'done' && (
+        <>
+          <Alert tone="success">You won’t receive {what} any more.</Alert>
+          <p class="mt-6 text-sm leading-relaxed text-silver-300">
+            Account emails (like password resets) are still sent when you ask for them. You can turn emails back on at any time from
+            <a class="link" href="/account#notifications">Account</a>.
+          </p>
+        </>
+      )}
+      {outcome === 'invalid' && (
+        <p class="leading-relaxed text-silver-300">
+          This unsubscribe link isn’t valid. It may have been copied incompletely. You can change your email preferences
+          after logging in, under <a class="link" href="/account#notifications">Account</a>.
+        </p>
+      )}
+      {outcome === 'limited' && <Alert tone="error">{RATE_LIMITED_MESSAGE}</Alert>}
+      {outcome === 'error' && <Alert tone="error">Something went wrong. Please try again in a moment.</Alert>}
+      {(outcome === null || outcome === 'limited' || outcome === 'error') && (
+        <form method="post" class={outcome ? 'mt-6' : ''}>
+          <input type="hidden" name="t" value={token} />
+          <input type="hidden" name="k" value={kind} />
+          <p class="leading-relaxed text-silver-300">Stop receiving {what}?</p>
+          <button type="submit" class="btn-primary mt-6 w-full">Unsubscribe</button>
+          {kind !== 'all' && (
+            <button type="submit" name="scope" value="all" class="btn-ghost mt-3 w-full">Unsubscribe from all AK Cash Club emails</button>
+          )}
+        </form>
+      )}
+    </AuthCard>
+  )}
+</PortalLayout>

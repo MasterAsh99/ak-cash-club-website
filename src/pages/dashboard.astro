@@ -5,13 +5,36 @@ import PortalLayout from '../layouts/PortalLayout.astro';
 import Alert from '../components/portal/Alert.astro';
 import StatTile from '../components/portal/StatTile.astro';
 import PerformanceChart from '../components/portal/PerformanceChart.astro';
-import { requireMember } from '../lib/access';
+import { readForm, requireMember } from '../lib/access';
 import { buildChart } from '../lib/chart';
 import { formatCents } from '../lib/money';
 import { computeStats, formatDate, type ResultRow } from '../lib/stats';
 
 const access = await requireMember(Astro);
 if (access instanceof Response) return access;
+
+// "Email me when results are posted" prompt for tracked players who haven't chosen yet.
+const NUDGE_COOKIE = 'akc_results_email_prompt';
+const form = await readForm(Astro);
+if (form && !access.isHost) {
+  const choice = form.get('results_email');
+  if (choice === 'on') {
+    const { error } = await Astro.locals.supabase!.rpc('set_my_notification_prefs', { p_prefs: { results_ready: true } });
+    if (!error) return Astro.redirect('/dashboard?notice=results-email-on', 303);
+  }
+  if (choice === 'dismiss') {
+    Astro.cookies.set(NUDGE_COOKIE, 'dismissed', {
+      path: '/', httpOnly: true, sameSite: 'lax', secure: Astro.url.protocol === 'https:', maxAge: 60 * 60 * 24 * 365,
+    });
+    return Astro.redirect('/dashboard', 303);
+  }
+}
+let showEmailNudge = false;
+if (access.trackingEnabled && !access.isHost && !Astro.cookies.has(NUDGE_COOKIE)) {
+  const { data, error } = await Astro.locals.supabase!.rpc('get_my_notification_prefs');
+  const prefs = Array.isArray(data) ? data[0] : data;
+  showEmailNudge = !error && !!prefs && !prefs.results_ready;
+}
 
 let rows: ResultRow[] = [];
 let loadError = false;
@@ -32,6 +55,7 @@ const tone = (c: bigint) => (c > 0n ? 'gain' : c < 0n ? 'loss' : 'neutral') as '
 const notices: Record<string, string> = {
   verified: 'Your email is verified. Welcome to AK Cash Club.',
   'password-updated': 'Your password has been updated.',
+  'results-email-on': 'Done. We’ll email you when the host posts a new result. You can change this in Account.',
 };
 const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
 ---
@@ -48,6 +72,18 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
   </header>
 
   {notice && <div class="mt-8"><Alert tone="success">{notice}</Alert></div>}
+  {showEmailNudge && (
+    <form method="post" class="panel mt-8 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <p class="text-sm leading-relaxed text-silver-200">
+        <span class="font-medium text-silver-50">Get an email when your result is posted?</span>
+        <span class="block text-silver-400">Just a heads-up with a link here. No amounts are included in the email.</span>
+      </p>
+      <div class="flex shrink-0 gap-3">
+        <button type="submit" name="results_email" value="on" class="btn-primary">Email me</button>
+        <button type="submit" name="results_email" value="dismiss" class="btn-ghost">No thanks</button>
+      </div>
+    </form>
+  )}
   {loadError && <div class="mt-8"><Alert tone="error">We couldn’t load your results just now. Please refresh in a moment.</Alert></div>}
 
   {
