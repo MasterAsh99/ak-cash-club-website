@@ -141,8 +141,11 @@ Variables and Secrets → Add**:
 | **Secret** | `SUPABASE_URL` | the Project URL |
 | **Secret** | `SUPABASE_PUBLISHABLE_KEY` | the publishable key |
 
-Use type **Secret** for both: secrets survive every deployment, whereas plain
-dashboard variables are replaced by `wrangler.jsonc` on each deploy.
+Use type **Secret** for both. (`wrangler.jsonc` also sets `keep_vars: true`, so even
+plain dashboard variables are no longer removed by a deploy.)
+
+If the login page ever says **“The member area is being set up”**, these two values are
+missing. Check this page first.
 
 Then merge the pull request. Cloudflare rebuilds and deploys automatically.
 

@@ -9,8 +9,12 @@
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
 
+  // Keep variables set in the Cloudflare dashboard when deploying. Without this,
+  // every deploy would delete dashboard variables that aren't listed below.
+  "keep_vars": true,
+
   // Non-secret settings. SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are set as
-  // encrypted variables in the Cloudflare dashboard (see SETUP.md), not here.
+  // Secrets in the Cloudflare dashboard (see SETUP.md), not here.
   "vars": {
     "PUBLIC_SITE_URL": "https://akcashclub.com"
   },
