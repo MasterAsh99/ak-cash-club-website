@@ -11,6 +11,8 @@ import { formatCents } from '../lib/money';
 import { computeStats, formatDate, type ResultRow } from '../lib/stats';
 import { formatGameTime } from '../lib/games';
 import SeatBadge from '../components/portal/SeatBadge.astro';
+import { limitStatus, onBreak, type Wellbeing } from '../lib/wellbeing';
+import { formatCents as fmtCents } from '../lib/money';
 
 const access = await requireMember(Astro);
 if (access instanceof Response) return access;
@@ -48,6 +50,13 @@ if (!access.isHost) {
   ) ?? null;
 }
 
+let wellbeing: Wellbeing | null = null;
+if (!access.isHost) {
+  const { data: wb } = await Astro.locals.supabase!.rpc('get_my_wellbeing');
+  wellbeing = (wb ?? null) as Wellbeing | null;
+}
+const limit = limitStatus(wellbeing);
+
 let rows: ResultRow[] = [];
 let loadError = false;
 if (access.trackingEnabled) {
@@ -84,6 +93,15 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
   </header>
 
   {notice && <div class="mt-8"><Alert tone="success">{notice}</Alert></div>}
+  {onBreak(wellbeing) && (
+    <div class="mt-8"><Alert tone="info" title="You’re taking a break">Seat requests and new-game emails are paused until {formatGameTime(wellbeing!.break_until!)}. Enjoy the time off.</Alert></div>
+  )}
+  {limit && limit.level !== 'ok' && (
+    <div class="mt-8"><Alert tone={limit.level === 'reached' ? 'error' : 'info'} title={limit.level === 'reached' ? 'You’ve reached your monthly loss limit' : 'Getting close to your monthly limit'}>
+      You’re down {fmtCents(limit.lost)} this month against the {fmtCents(limit.limit)} limit you set.
+      {limit.level === 'reached' ? ' Seat requests are paused until next month.' : ''} <a class="link" href="/account#play-safely">Your settings</a>
+    </Alert></div>
+  )}
   {nextGame && (
     <a href={`/games/${nextGame.game_night_id}`} class="panel mt-8 flex flex-wrap items-center justify-between gap-4 p-5 transition hover:border-steel-300/40 sm:p-6">
       <span>

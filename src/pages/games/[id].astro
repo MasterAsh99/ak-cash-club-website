@@ -8,6 +8,7 @@ import { readForm, requireMember } from '../../lib/access';
 import { friendlyDbError } from '../../lib/errors';
 import { formatGameTime, seatsLeft, torontoDate, type NightStatus, type SeatStatus } from '../../lib/games';
 import { formatDate } from '../../lib/stats';
+import { onBreak, type Wellbeing } from '../../lib/wellbeing';
 import { field } from '../../lib/validation';
 
 const access = await requireMember(Astro);
@@ -42,6 +43,10 @@ interface Night {
   my_note: string | null; my_waitlist_position: number | null; address_date: string;
   address?: string; arrival_note?: string | null;
 }
+const { data: wbData } = await supabase.rpc('get_my_wellbeing');
+const wellbeing = (wbData ?? null) as Wellbeing | null;
+const pausedOnBreak = onBreak(wellbeing);
+const paused = pausedOnBreak || Boolean(wellbeing?.limit_reached);
 const { data, error } = await supabase.rpc('get_game_night', { p_id: id });
 if (error && /game_night_not_found|invalid input syntax/.test(error.message)) return new Response(null, { status: 404 });
 const n = data as Night | null;
@@ -53,13 +58,19 @@ const notices: Record<string, string> = {
 const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
 const started = n ? new Date(n.starts_at) <= new Date() : false;
 const active = n?.my_status === 'requested' || n?.my_status === 'confirmed' || n?.my_status === 'waitlisted';
-const canRequest = n && n.status === 'open' && !started && (!n.my_status || n.my_status === 'cancelled');
+const canRequest = !paused && n && n.status === 'open' && !started && (!n.my_status || n.my_status === 'cancelled');
 const isGameDay = n ? torontoDate(new Date()) >= n.address_date : false;
 ---
 
 <PortalLayout title="Game night" access={access} current="games">
   <a href="/games" class="text-sm text-silver-400 hover:text-silver-100">← All game nights</a>
   {notice && <div class="mt-6"><Alert tone="success">{notice}</Alert></div>}
+  {paused && (
+    <div class="mt-6"><Alert tone="info" title={pausedOnBreak ? 'You’re taking a break' : 'Monthly loss limit reached'}>
+      {pausedOnBreak ? `Seat requests are paused until ${formatGameTime(wellbeing!.break_until!)}.` : 'You’ve reached the limit you set for this month, so seat requests are paused until next month.'}
+      {' '}<a class="link" href="/account#play-safely">Your settings</a>
+    </Alert></div>
+  )}
   {formError && <div class="mt-6"><Alert tone="error">{formError}</Alert></div>}
   {error && !n && <div class="mt-6"><Alert tone="error">We couldn’t load this game just now. Please refresh in a moment.</Alert></div>}
 

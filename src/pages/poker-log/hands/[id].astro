@@ -1,0 +1,67 @@
+---
+export const prerender = false;
+
+import PortalLayout from '../../../layouts/PortalLayout.astro';
+import Alert from '../../../components/portal/Alert.astro';
+import HandForm from '../../../components/portal/HandForm.astro';
+import PlayingCard from '../../../components/portal/PlayingCard.astro';
+import { readForm, requireMember } from '../../../lib/access';
+import { readHandForm, validateHand, type HandValues } from '../../../lib/cards';
+import { friendlyDbError } from '../../../lib/errors';
+
+const access = await requireMember(Astro);
+if (access instanceof Response) return access;
+const id = Astro.params.id ?? '';
+if (!/^[0-9a-f-]{36}$/i.test(id)) return new Response(null, { status: 404 });
+const supabase = Astro.locals.supabase!;
+
+type Hand = { hand_id: string; played_on: string; title: string; stakes: string | null; position: string | null; hole_cards: string[]; board: string[]; notes: string | null };
+const { data } = await supabase.rpc('my_hands_list');
+const h = ((data ?? []) as Hand[]).find((x) => x.hand_id === id);
+if (!h) return new Response(null, { status: 404 });
+
+let values: HandValues = {
+  id, played_on: String(h.played_on).slice(0, 10), title: h.title, stakes: h.stakes ?? '', position: h.position ?? '',
+  hole: [h.hole_cards[0] ?? '', h.hole_cards[1] ?? ''], board: [0, 1, 2, 3, 4].map((i) => h.board[i] ?? ''), notes: h.notes ?? '',
+};
+let errors: Record<string, string> = {};
+let formError = '';
+const form = await readForm(Astro);
+if (form?.get('action') === 'delete') {
+  if (form.get('confirm') !== 'yes') formError = 'Tick the box to confirm.';
+  else {
+    const { error } = await supabase.rpc('my_hand_delete', { p_hand_id: id });
+    if (error) formError = friendlyDbError(error);
+    else return Astro.redirect('/poker-log/hands?notice=deleted', 303);
+  }
+} else if (form) {
+  values = { ...readHandForm(form), id };
+  const v = validateHand(values);
+  if (!v.ok) errors = v.errors;
+  else {
+    const { error } = await supabase.rpc('my_hand_save', { p_hand: v.payload });
+    if (error) formError = friendlyDbError(error);
+    else return Astro.redirect('/poker-log/hands?notice=updated', 303);
+  }
+}
+---
+
+<PortalLayout title="Edit hand" access={access} current="log">
+  <a href="/poker-log/hands" class="text-sm text-silver-400 hover:text-silver-100">← Hand notes</a>
+  <header class="mt-4 flex flex-wrap items-end justify-between gap-4">
+    <h1 class="text-3xl sm:text-4xl">{h.title}</h1>
+    <div class="flex flex-wrap items-center gap-2">
+      {h.hole_cards.map((c) => <PlayingCard code={c} />)}
+      {h.hole_cards.length > 0 && h.board.length > 0 && <span class="mx-1 text-silver-500" aria-hidden="true">|</span>}
+      {h.board.map((c) => <PlayingCard code={c} />)}
+    </div>
+  </header>
+  <section class="panel mt-6 p-5 sm:p-8"><HandForm values={values} errors={errors} isEdit formError={formError} /></section>
+  <section class="panel mt-4 p-5 sm:p-8">
+    <form method="post" novalidate>
+      <input type="hidden" name="action" value="delete" />
+      <label class="flex items-start gap-3 text-sm text-silver-200"><input type="checkbox" name="confirm" value="yes" class="mt-1 size-4 accent-[#d3707f]" /> Delete this hand permanently.</label>
+      <button type="submit" class="btn-danger mt-4">Delete hand</button>
+    </form>
+  </section>
+</PortalLayout>

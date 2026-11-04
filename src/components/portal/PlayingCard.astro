@@ -1,0 +1,15 @@
+---
+import { cardLabel, cardName, isRed } from '../../lib/cards';
+interface Props { code: string; size?: 'sm' | 'md' }
+const { code, size = 'md' } = Astro.props;
+---
+
+<span
+  role="img"
+  aria-label={cardName(code)}
+  class:list={[
+    'inline-flex items-center justify-center rounded-md bg-silver-50 font-sans font-semibold shadow-[0_2px_6px_rgb(0_0_0/0.4)] ring-1 ring-black/10',
+    size === 'sm' ? 'h-8 w-6 text-xs' : 'h-12 w-9 text-base',
+    isRed(code) ? 'text-[#c0392b]' : 'text-midnight-950',
+  ]}
+>{cardLabel(code)}</span>

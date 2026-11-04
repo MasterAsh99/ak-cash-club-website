@@ -715,6 +715,70 @@ async function login(page, email, password, next = '') {
     assert.match(await a.textContent('main'), /\+\$150\.50/);
   });
 
+  await step('all results: AK games and outside games together, with filters', async () => {
+    await a.goto(`${SITE}/poker-log/results`);
+    const body = (await a.innerText('main')).replace(/\s+/g, ' ');
+    assert.match(body, /AK Cash Club/);
+    assert.match(body, /Casino Rama/);
+    await a.screenshot({ path: `${SHOTS}/30-all-results-mobile.png`, fullPage: true });
+    await a.selectOption('#source', 'ak');
+    await a.click('form[aria-label=Filters] button[type=submit]');
+    await a.waitForURL(/source=ak/);
+    const ak = (await a.innerText('main section[aria-labelledby=list-title]')).replace(/\s+/g, ' ');
+    assert.ok(!/Casino Rama|PokerStars/.test(ak), 'outside games filtered out');
+    assert.match(ak, /Recorded by the host/);
+  });
+
+  await step('hand notes with card pickers; duplicates rejected; private to the player', async () => {
+    await a.goto(`${SITE}/poker-log/hands`);
+    await a.fill('#title', 'Rivered top two');
+    await a.selectOption('select[name=position]', 'BTN');
+    await a.selectOption('select[name=hole_0]', 'As');
+    await a.selectOption('select[name=hole_1]', 'Kd');
+    await a.selectOption('select[name=board_0]', 'Ah');
+    await a.selectOption('select[name=board_1]', '7c');
+    await a.selectOption('select[name=board_2]', '2d');
+    await a.selectOption('select[name=board_3]', 'Ks');
+    assert.equal(await a.$eval('select[name=board_4] option[value=As]', (o) => o.disabled), true, 'used cards greyed out');
+    await a.fill('#notes', 'Villain shoved the river. Snap call.');
+    await a.click('form[data-hand-form] button[type=submit]');
+    await a.waitForURL(/notice=saved/);
+    assert.match(await a.textContent('main'), /Rivered top two/);
+    assert.ok(await a.$('[aria-label="Ace of spades"]'));
+    await a.screenshot({ path: `${SHOTS}/31-hand-notes-mobile.png`, fullPage: true });
+    // Server-side check still applies if the picker is bypassed.
+    const r = await a.request.post(`${SITE}/poker-log/hands`, { headers: { Origin: SITE }, form: { action: 'save', played_on: '2026-11-01', title: 'x', hole_0: 'As', hole_1: 'As' } });
+    assert.match(await r.text(), /same card is used twice/);
+    await h.goto(`${SITE}/poker-log/hands`);
+    assert.ok(!/Rivered top two/.test(await h.textContent('main')), 'host cannot see it');
+  });
+
+  await step('responsible play: loss limit, session reminder, and a break that pauses seat requests', async () => {
+    await a.goto(`${SITE}/account#play-safely`);
+    await a.fill('#limit', '300');
+    await a.click('form:has(input[value=loss_limit]) button:has-text("Set limit")');
+    assert.match(await a.textContent('#play-safely'), /monthly loss limit is set/);
+    await a.fill('#limit', '500');
+    await a.click('form:has(input[value=loss_limit]) button:has-text("Set limit")');
+    assert.match(await a.textContent('#play-safely'), /takes effect in 24 hours/);
+    await a.selectOption('#minutes', '240');
+    await a.click('form:has(input[value=session_reminder]) button[type=submit]');
+    assert.match(await a.textContent('#play-safely'), /after 4 hours/);
+    await a.locator('#play-safely').screenshot({ path: `${SHOTS}/32-play-safely-mobile.png` });
+
+    await b.goto(`${SITE}/account#play-safely`);
+    await b.selectOption('#days', '7');
+    await b.click('form:has(input[value=break]) button[type=submit]');
+    assert.match(await b.textContent('#play-safely'), /Please tick the box/);
+    await b.check('input[name=confirm_break]');
+    await b.click('form:has(input[value=break]) button[type=submit]');
+    assert.match(await b.textContent('#play-safely'), /Your break has started/);
+    await b.goto(`${SITE}/games`);
+    assert.match(await b.textContent('main'), /You’re taking a break/);
+    assert.equal(await b.locator('form:has(input[value=request])').count(), 0, 'no request buttons during a break');
+    assert.match(await b.textContent('main'), /1-866-531-2600|taking a break/);
+  });
+
   await step('installable app: manifest, icons, offline page; member pages never cached', async () => {
     const m = await (await fetch(`${SITE}/manifest.webmanifest`)).json();
     assert.equal(m.start_url, '/dashboard');

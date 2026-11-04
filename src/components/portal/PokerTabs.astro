@@ -1,0 +1,19 @@
+---
+interface Props { current: 'log' | 'results' | 'hands' }
+const { current } = Astro.props;
+const tabs = [
+  { key: 'log', href: '/poker-log', label: 'Outside games' },
+  { key: 'results', href: '/poker-log/results', label: 'All results' },
+  { key: 'hands', href: '/poker-log/hands', label: 'Hand notes' },
+] as const;
+---
+
+<nav aria-label="My Poker Log sections" class="mt-6 flex flex-wrap gap-2 text-sm">
+  {tabs.map((t) => (
+    <a
+      href={t.href}
+      aria-current={t.key === current ? 'page' : undefined}
+      class:list={['inline-flex min-h-10 items-center rounded-full px-4 transition', t.key === current ? 'bg-silver-100 text-midnight-950' : 'border border-silver-100/15 text-silver-200 hover:border-steel-300/50']}
+    >{t.label}</a>
+  ))}
+</nav>

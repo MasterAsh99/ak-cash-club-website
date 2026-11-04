@@ -5,6 +5,14 @@
  */
 
 const DB_MESSAGES: Record<string, string> = {
+  // Member tools
+  hand_not_found: 'That hand couldn’t be found.',
+  invalid_cards: 'Check the cards: two hole cards (or none), a board of 3–5 cards, and no card used twice.',
+  invalid_limit: 'Enter a monthly limit between $1 and $1,000,000.',
+  invalid_reminder: 'Choose a reminder between 30 minutes and 12 hours.',
+  invalid_break: 'Choose a break of 1, 7, 30 or 90 days.',
+  on_a_break: 'You’re taking a break, so seat requests are paused until it ends.',
+  loss_limit_reached: 'You’ve reached the monthly loss limit you set, so seat requests are paused until next month.',
   // Live game mode
   live_game_not_started: 'Start the live game first.',
   live_game_finalized: 'This game has been finalized. Make any corrections on the recorded session.',

@@ -9,10 +9,11 @@
 import { formatLocalGameTime } from './games';
 import { formatDate } from './stats';
 
-export type NotificationKind = 'results_ready' | 'game_announcement' | 'seat_update' | 'game_reminder';
+export type NotificationKind = 'results_ready' | 'game_announcement' | 'seat_update' | 'game_reminder' | 'session_reminder';
 
 /** The preference each kind of email is controlled by (used by unsubscribe links). */
-export const PREF_FOR_KIND: Record<NotificationKind, PrefKey> = {
+export const PREF_FOR_KIND: Record<NotificationKind, PrefKey | 'session_reminders'> = {
+  session_reminder: 'session_reminders',
   results_ready: 'results_ready',
   game_announcement: 'game_announcements',
   seat_update: 'seat_updates',
@@ -198,6 +199,21 @@ function content(n: ClaimedNotification): Content | null {
         ],
         button: { label: 'View the game', path: gamePath(p) },
         why: 'You’re receiving this because you have a confirmed seat and “Game-day reminders” turned on.',
+      };
+    }
+    case 'session_reminder': {
+      const minutes = typeof p.minutes === 'number' ? p.minutes : Number(p.minutes);
+      const hours = Number.isFinite(minutes) && minutes > 0 ? minutes / 60 : null;
+      return {
+        subject: hours ? `You’ve been playing for ${hours} hours` : 'A reminder to take a breather',
+        preheader: 'The reminder you asked for.',
+        heading: 'Time for a breather?',
+        paragraphs: [
+          `Hi ${n.username}, ${hours ? `you’ve been at the table for about ${hours} hours` : 'you’ve been at the table a while'}. This is the reminder you set up.`,
+          'Stretch, grab a drink of water, and check you’re still enjoying the game. If gambling ever stops feeling like fun, ConnexOntario (1-866-531-2600, free and 24/7) can help.',
+        ],
+        button: { label: 'My settings', path: '/account#play-safely' },
+        why: 'You’re receiving this because you turned on long-session reminders.',
       };
     }
     default:
