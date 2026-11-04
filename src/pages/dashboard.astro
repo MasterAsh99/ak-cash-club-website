@@ -195,4 +195,14 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
       </>
     )
   }
+
+  {!access.isHost && (
+    <a href="/poker-log" class="panel mt-4 flex items-center justify-between gap-4 p-5 transition-colors hover:bg-silver-100/[0.03] sm:p-8">
+      <div>
+        <p class="eyebrow">My Poker Log</p>
+        <p class="mt-2 text-silver-200">Track your games outside AK Cash Club, privately.</p>
+      </div>
+      <span class="text-silver-300" aria-hidden="true">→</span>
+    </a>
+  )}
 </PortalLayout>

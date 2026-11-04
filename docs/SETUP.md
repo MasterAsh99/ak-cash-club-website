@@ -52,6 +52,7 @@ The club’s address is **`https://akcashclub.com`** (with `www.` redirecting to
    “Success. No rows returned”:
    1. `20261103000000_player_portal.sql` (accounts, sessions, results, audit log)
    2. `20261104000000_host_expenses.sql` (host expense tracker)
+   3. `20261105000000_poker_log_and_payments.sql` (My Poker Log, payment tracking)
 
    When a new file is added in future, run just that file.
    *(Alternative for developers: `npx supabase link` then `npx supabase db push`.)*

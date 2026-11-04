@@ -135,8 +135,9 @@ analytics, for example), you'll need to allow that domain in the CSP.
 │       ├── signup, login, check-email, forgot-password, logout
 │       ├── auth/confirm     Landing page for every emailed link
 │       ├── dashboard        Player dashboard
+│       ├── poker-log/       My Poker Log: a member’s private record of games outside the club
 │       ├── account          Username, tracking consent, password, email, deletion
-│       └── host/            Host-only: sessions, players, expenses, audit log, two-factor
+│       └── host/            Host-only: sessions (with payments), players, expenses, audit log, two-factor
 ├── supabase/
 │   ├── migrations/          Database tables, security rules and functions
 │   ├── templates/           Branded verification / reset / email-change emails

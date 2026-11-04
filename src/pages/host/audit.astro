@@ -8,6 +8,7 @@ import { requireHost } from '../../lib/access';
 import { friendlyDbError } from '../../lib/errors';
 import { formatCents, toCents } from '../../lib/money';
 import { categoryLabel } from '../../lib/expenses';
+import { methodLabel } from '../../lib/payments';
 
 const access = await requireHost(Astro);
 if (access instanceof Response) return access;
@@ -38,8 +39,9 @@ const FIELD_LABEL: Record<string, string> = {
   player_id: 'player', guest_label: 'guest', played_on: 'date', stakes: 'stakes', title: 'title', game_type: 'game',
   reason: 'reason', tracking_enabled: 'tracking', host_notes: 'notes',
   spent_on: 'date', category: 'category', description: 'description', session_id: 'game',
+  buy_in_method: 'paid in by', payout_method: 'paid out by', payout_paid: 'paid out',
 };
-const SKIP = new Set(['id', 'created_at', 'updated_at', 'created_by', 'net_cents', 'total_buy_in_cents', 'tracking_consented_at']);
+const SKIP = new Set(['id', 'created_at', 'updated_at', 'created_by', 'net_cents', 'total_buy_in_cents', 'tracking_consented_at', 'payout_paid_at']);
 
 function show(key: string, v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
@@ -49,6 +51,8 @@ function show(key: string, v: unknown): string {
   if (key === 'host_notes') return '(private note)';
   if (key === 'session_id') return 'linked to a game';
   if (key === 'category') return categoryLabel(String(v));
+  if (key === 'buy_in_method' || key === 'payout_method') return methodLabel(String(v));
+  if (key === 'payout_paid') return v ? 'yes' : 'no';
   if (typeof v === 'boolean') return v ? 'on' : 'off';
   return String(v);
 }

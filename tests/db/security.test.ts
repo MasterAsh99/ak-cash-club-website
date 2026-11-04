@@ -357,14 +357,14 @@ describe('privacy between players', () => {
 
   it('a player who never opted in sees nothing', async () => {
     expect(await db.as(asUser(carolId), 'select * from public.get_my_results()')).toEqual([]);
-    expect(await db.as(asUser(carolId), 'select * from public.session_results')).toEqual([]);
+    expect(await db.as(asUser(carolId), 'select id, net_cents from public.session_results')).toEqual([]);
     expect(await db.as(asUser(carolId), 'select id, played_on, stakes from public.game_sessions')).toEqual([]);
   });
 
   it('turning tracking off hides results immediately; turning it on shows them again', async () => {
     await db.as(asUser(bobId), 'select public.set_my_tracking(false)');
     expect(await db.as(asUser(bobId), 'select * from public.get_my_results()')).toEqual([]);
-    expect(await db.as(asUser(bobId), 'select * from public.session_results')).toEqual([]);
+    expect(await db.as(asUser(bobId), 'select id, net_cents from public.session_results')).toEqual([]);
     await db.as(asUser(bobId), 'select public.set_my_tracking(true)');
     expect((await db.as(asUser(bobId), 'select * from public.get_my_results()')).length).toBe(1);
   });

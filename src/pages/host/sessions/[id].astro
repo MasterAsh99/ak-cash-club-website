@@ -5,6 +5,8 @@ import PortalLayout from '../../../layouts/PortalLayout.astro';
 import HostNav from '../../../components/portal/HostNav.astro';
 import SessionForm from '../../../components/portal/SessionForm.astro';
 import Alert from '../../../components/portal/Alert.astro';
+import PaymentsPanel from '../../../components/portal/PaymentsPanel.astro';
+import type { PaymentRowIn } from '../../../lib/payments';
 import { requireHost } from '../../../lib/access';
 import { friendlyDbError } from '../../../lib/errors';
 import { handleSessionForm, loadPlayerOptions, type PlayerOption } from '../../../lib/host-session-page';
@@ -44,6 +46,10 @@ const { data: expenseData } = loadErr
 const gameExpenses = (expenseData ?? []) as ExpenseRow[];
 const gameExpenseTotal = gameExpenses.reduce((s, e) => s + toCents(e.amount_cents), 0n);
 
+const paymentRows = ((stored?.results ?? []) as PaymentRowIn[]);
+const paymentsParam = Astro.url.searchParams.get('payments');
+const paymentsStatus = paymentsParam === 'saved' || paymentsParam === 'error' ? paymentsParam : null;
+
 const notices: Record<string, string> = {
   created: 'Session saved. Tracked players can now see their results on their dashboards.',
   updated: 'Changes saved and recorded in the audit log.',
@@ -66,7 +72,9 @@ const notice = notices[Astro.url.searchParams.get('notice') ?? ''];
     </div>
   )}
 
-  <section class="panel mt-10 overflow-hidden" aria-labelledby="game-expenses-title">
+  {paymentRows.length > 0 && <PaymentsPanel sessionId={id} rows={paymentRows} status={paymentsStatus} />}
+
+  <section class="panel mt-4 overflow-hidden" aria-labelledby="game-expenses-title">
     <div class="flex flex-wrap items-baseline justify-between gap-3 px-5 pt-6 sm:px-8">
       <h2 id="game-expenses-title" class="text-2xl">Expenses for this game</h2>
       <p class="text-sm text-silver-300">Total <span class="tabular-nums text-silver-50">{formatCents(gameExpenseTotal)}</span></p>

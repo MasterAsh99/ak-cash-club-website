@@ -20,7 +20,7 @@ export interface Access {
 /** Only allow same-site relative paths into the member area as "next" targets. */
 export function safeNext(raw: string | null | undefined, fallback = '/dashboard'): string {
   if (!raw) return fallback;
-  if (!/^\/(dashboard|account|host)(\/[A-Za-z0-9/_-]*)?(\?[A-Za-z0-9=&_-]*)?$/.test(raw)) return fallback;
+  if (!/^\/(dashboard|account|host|poker-log)(\/[A-Za-z0-9/_-]*)?(\?[A-Za-z0-9=&_-]*)?$/.test(raw)) return fallback;
   return raw;
 }
 
